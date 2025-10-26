@@ -121,6 +121,61 @@ body {
   );
 }
 
+/* VHS Effect - Horizontal lines moving from left to right */
+@keyframes vhs-glitch-horizontal {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100vw); }
+}
+
+.vhs-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 15;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 215, 0, 0.04) 2px,
+    rgba(255, 215, 0, 0.04) 4px,
+    transparent 4px,
+    transparent 6px,
+    rgba(139, 115, 85, 0.02) 6px,
+    rgba(139, 115, 85, 0.02) 8px
+  );
+  background-size: 50px 100%;
+  animation: vhs-glitch-horizontal 3s linear infinite;
+  opacity: 0.6;
+}
+
+/* Additional VHS vertical distortion lines */
+@keyframes vhs-vertical-scan {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+.vhs-vertical {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 14;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 1px,
+    rgba(0, 0, 0, 0.05) 1px,
+    rgba(0, 0, 0, 0.05) 2px
+  );
+  background-size: 100% 8px;
+  animation: vhs-vertical-scan 0.15s infinite;
+}
+
 /* Responsive text sizing */
 @media (max-width: 768px) {
   .military-btn {

@@ -49,16 +49,19 @@ const MainMenu = () => {
         ref={audioRef}
         loop
         preload="auto"
-        src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+        src="/assets/theme-music.mp3"
       />
 
       {/* Parallax background with multiple layers */}
       <div className="parallax-bg">
-        {/* Base layer - Dark gradient */}
+        {/* Base layer - Dark gradient with background image */}
         <div
           className="parallax-layer"
           style={{
-            background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
+            backgroundImage: 'url(/assets/menu-background.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed',
             transform: `translateY(${mousePos.y * 0.05}px)`,
           }}
         />
@@ -82,6 +85,12 @@ const MainMenu = () => {
             pointerEvents: 'none',
           }}
         />
+
+        {/* VHS Horizontal Effect - Lines from left to right */}
+        <div className="vhs-effect" />
+
+        {/* VHS Vertical Distortion */}
+        <div className="vhs-vertical" />
       </div>
 
       {/* Main content container */}
