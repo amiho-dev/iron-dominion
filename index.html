@@ -375,21 +375,41 @@
             opacity: 1;
         }
 
-        /* Music status in bottom right */
-        .music-status {
+        /* Music control in bottom right */
+        .music-control {
             position: fixed;
             bottom: 1.5rem;
             right: 1.5rem;
-            color: #ff9933;
-            font-family: 'Ironmonger Black', 'Courier New', monospace;
-            font-size: 0.85rem;
-            letter-spacing: 0.1em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             z-index: 20;
+        }
+
+        .music-icon-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
             opacity: 0.7;
             transition: opacity 0.3s ease;
         }
 
-        .music-status:hover {
+        .music-icon-btn:hover {
+            opacity: 1;
+        }
+
+        .music-status {
+            color: #ff9933;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .music-control:hover .music-status {
             opacity: 1;
         }
 
@@ -634,14 +654,16 @@
 
         <!-- Control bar -->
         <div class="control-bar">
-            <button class="control-btn" id="musicBtn" onclick="toggleMusic()">�</button>
         </div>
 
         <!-- Version info in bottom left -->
         <div class="version-badge">v0.11.0</div>
 
-        <!-- Music status in bottom right -->
-        <div class="music-status" id="musicStatus">MUSIC ON</div>
+        <!-- Music control in bottom right -->
+        <div class="music-control">
+            <button class="music-icon-btn" id="musicBtn" onclick="toggleMusic()">🔊</button>
+            <span class="music-status" id="musicStatus">MUSIC ON</span>
+        </div>
     </div>
 
     <!-- Settings Modal -->
