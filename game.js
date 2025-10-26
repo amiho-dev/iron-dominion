@@ -1,3 +1,17 @@
+// Game Configuration Constants
+const CONFIG = {
+    PROVINCES_PER_ROW: 10,
+    PROVINCE_HEIGHT: 160,
+    PROVINCE_WIDTH: 80,
+    ALLIANCE_ACCEPTANCE_RATE: 0.5,
+    BATTLE_CHANCE_PER_DAY: 0.01,
+    GAME_TICK_INTERVAL: 100,
+    DAILY_POLITICAL_POWER_GAIN: 0.2,
+    DAILY_MANPOWER_GAIN: 100,
+    ARMY_XP_PER_WAR: 0.5,
+    BATTLE_VICTORY_XP: 10
+};
+
 // Game State
 const gameState = {
     isPaused: false,
@@ -81,8 +95,8 @@ function createProvinces() {
     const owners = ['Germany', 'France', 'Soviet Union', 'United Kingdom', 'Italy', 'Poland'];
     
     for (let i = 0; i < 30; i++) {
-        const x = (i % 10) * 80 + 40;
-        const y = Math.floor(i / 10) * 160 + 80;
+        const x = (i % CONFIG.PROVINCES_PER_ROW) * CONFIG.PROVINCE_WIDTH + 40;
+        const y = Math.floor(i / CONFIG.PROVINCES_PER_ROW) * CONFIG.PROVINCE_HEIGHT + 80;
         
         gameState.provinces.push({
             id: i,
@@ -285,7 +299,7 @@ function offerAlliance() {
     }
     
     // 50% chance of acceptance
-    if (Math.random() > 0.5) {
+    if (Math.random() > CONFIG.ALLIANCE_ACCEPTANCE_RATE) {
         gameState.player.allies.push(targetNation);
         addMessage(`${nation.name} accepted your alliance offer!`, "success");
     } else {
@@ -386,9 +400,9 @@ function advanceDay() {
     gameState.currentDate.setDate(gameState.currentDate.getDate() + 1);
     
     // Generate resources
-    gameState.player.politicalPower += 0.2;
-    gameState.player.manpower += 100;
-    gameState.player.armyXP += gameState.player.wars.length * 0.5;
+    gameState.player.politicalPower += CONFIG.DAILY_POLITICAL_POWER_GAIN;
+    gameState.player.manpower += CONFIG.DAILY_MANPOWER_GAIN;
+    gameState.player.armyXP += gameState.player.wars.length * CONFIG.ARMY_XP_PER_WAR;
     
     // Research progress
     if (gameState.player.research.active) {
@@ -412,11 +426,11 @@ function advanceDay() {
     
     // War simulation (simple)
     gameState.player.wars.forEach(warNation => {
-        if (Math.random() < 0.01) { // 1% chance per day
+        if (Math.random() < CONFIG.BATTLE_CHANCE_PER_DAY) { // 1% chance per day
             const victory = Math.random() > 0.5;
             if (victory) {
                 addMessage(`Victory in battle against ${gameState.nations[warNation].name}!`, "success");
-                gameState.player.armyXP += 10;
+                gameState.player.armyXP += CONFIG.BATTLE_VICTORY_XP;
             } else {
                 addMessage(`Defeat in battle against ${gameState.nations[warNation].name}`, "danger");
             }
@@ -431,7 +445,7 @@ function startGameLoop() {
         for (let i = 0; i < gameState.speed; i++) {
             gameTick();
         }
-    }, 100); // 10 ticks per second
+    }, CONFIG.GAME_TICK_INTERVAL); // 10 ticks per second
 }
 
 // Initialize game when page loads
