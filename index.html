@@ -445,12 +445,13 @@
 
             <!-- Menu buttons -->
             <div class="buttons-container">
-                <button class="military-btn" onclick="handleClick('Singleplayer')">▶ SINGLEPLAYER</button>
-                <button class="military-btn" onclick="handleClick('Multiplayer')">⚔ MULTIPLAYER</button>
-                <button class="military-btn" onclick="handleClick('Load Game')">📂 LOAD GAME</button>
+                <button class="military-btn" onclick="handleClick('Multiplayer')">⚔ CHOOSE LOBBY (OR CREATE ONE)</button>
+                <button class="military-btn" onclick="handleLoadGame()">📂 LOAD GAME</button>
                 <button class="military-btn" onclick="handleClick('Settings')">⚙ SETTINGS</button>
-                <button class="military-btn" onclick="handleClick('Exit Game')">⊗ EXIT GAME</button>
             </div>
+
+            <!-- Hidden file input for IDW file upload -->
+            <input type="file" id="idwFileInput" accept=".idw" style="display: none;" onchange="handleIDWFileUpload(event)">
         </div>
 
         <!-- Corner decorations -->
@@ -487,6 +488,26 @@
             // Add haptic feedback if available
             if (navigator.vibrate) {
                 navigator.vibrate(50);
+            }
+        }
+
+        // Handle Load Game - Open file dialog for IDW files
+        function handleLoadGame() {
+            const fileInput = document.getElementById('idwFileInput');
+            fileInput.click();
+        }
+
+        // Handle IDW file upload
+        function handleIDWFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.name.endsWith('.idw')) {
+                    alert('Please select a valid Iron Dominion World file (.idw)');
+                    return;
+                }
+                console.log(`Loading IDW file: ${file.name}`);
+                // File processing logic will go here
+                // TODO: Load and parse the IDW file
             }
         }
 
