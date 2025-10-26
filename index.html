@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearts of Iron 4 - Web Edition</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <header>
+            <h1>Hearts of Iron IV - Web Edition</h1>
+            <div id="game-info">
+                <span id="current-date">January 1, 1936</span>
+                <button id="pause-btn">⏸ Pause</button>
+                <button id="speed-1">► Speed 1</button>
+                <button id="speed-2">►► Speed 2</button>
+                <button id="speed-3">►►► Speed 3</button>
+            </div>
+        </header>
+
+        <div id="main-content">
+            <div id="map-panel">
+                <h2>World Map</h2>
+                <canvas id="game-map" width="800" height="500"></canvas>
+                <div id="map-info">
+                    <p>Selected Province: <span id="selected-province">None</span></p>
+                    <p>Owner: <span id="province-owner">-</span></p>
+                </div>
+            </div>
+
+            <aside id="side-panel">
+                <div id="country-info">
+                    <h3>Your Nation: <span id="player-nation">Germany</span></h3>
+                    <div class="resource-display">
+                        <div class="resource-item">
+                            <span class="resource-label">💰 Political Power:</span>
+                            <span id="political-power">100</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label">🏭 Civilian Factories:</span>
+                            <span id="civilian-factories">35</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label">⚙️ Military Factories:</span>
+                            <span id="military-factories">28</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label">👥 Manpower:</span>
+                            <span id="manpower">1.2M</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label">⚔️ Army Experience:</span>
+                            <span id="army-xp">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="military-panel">
+                    <h3>Military</h3>
+                    <div id="divisions-list">
+                        <p>Infantry Divisions: <span id="infantry-count">24</span></p>
+                        <p>Panzer Divisions: <span id="panzer-count">6</span></p>
+                        <p>Air Wings: <span id="air-wings">12</span></p>
+                        <p>Naval Fleets: <span id="naval-fleets">3</span></p>
+                    </div>
+                    <button id="recruit-btn" class="action-btn">Recruit Division (Cost: 1000 MP)</button>
+                </div>
+
+                <div id="research-panel">
+                    <h3>Research</h3>
+                    <select id="research-select">
+                        <option value="">Select Technology</option>
+                        <option value="infantry">Infantry Equipment I</option>
+                        <option value="tanks">Basic Tank</option>
+                        <option value="fighter">Fighter I</option>
+                        <option value="industry">Industrial Technology</option>
+                    </select>
+                    <button id="research-btn" class="action-btn">Start Research</button>
+                    <p id="research-status">No active research</p>
+                </div>
+
+                <div id="diplomacy-panel">
+                    <h3>Diplomacy</h3>
+                    <select id="target-nation">
+                        <option value="">Select Nation</option>
+                        <option value="france">France</option>
+                        <option value="uk">United Kingdom</option>
+                        <option value="usa">United States</option>
+                        <option value="ussr">Soviet Union</option>
+                        <option value="italy">Italy</option>
+                        <option value="japan">Japan</option>
+                    </select>
+                    <button id="declare-war-btn" class="action-btn">Declare War</button>
+                    <button id="offer-alliance-btn" class="action-btn">Offer Alliance</button>
+                    <div id="diplomacy-status">
+                        <h4>Current Wars:</h4>
+                        <ul id="wars-list"></ul>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div id="notifications">
+            <h3>Events & Messages</h3>
+            <div id="message-log"></div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
