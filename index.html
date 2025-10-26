@@ -375,6 +375,24 @@
             opacity: 1;
         }
 
+        /* Music status in bottom right */
+        .music-status {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            color: #ff9933;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            z-index: 20;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .music-status:hover {
+            opacity: 1;
+        }
+
         /* Corner decorations */
         .corner {
             position: fixed;
@@ -616,11 +634,14 @@
 
         <!-- Control bar -->
         <div class="control-bar">
-            <button class="control-btn" id="musicBtn" onclick="toggleMusic()">🔇 MUSIC OFF</button>
+            <button class="control-btn" id="musicBtn" onclick="toggleMusic()">�</button>
         </div>
 
         <!-- Version info in bottom left -->
         <div class="version-badge">v0.11.0</div>
+
+        <!-- Music status in bottom right -->
+        <div class="music-status" id="musicStatus">MUSIC ON</div>
     </div>
 
     <!-- Settings Modal -->
@@ -748,17 +769,21 @@
         function handleMusicToggle() {
             const audio = document.getElementById('bgMusic');
             const btn = document.getElementById('musicToggle');
+            const musicBtn = document.getElementById('musicBtn');
+            const status = document.getElementById('musicStatus');
             
             if (audio.muted) {
                 audio.muted = false;
                 btn.classList.add('active');
                 btn.textContent = 'ON';
-                document.getElementById('musicBtn').textContent = '🔊 MUSIC ON';
+                musicBtn.textContent = '🔊';
+                status.textContent = 'MUSIC ON';
             } else {
                 audio.muted = true;
                 btn.classList.remove('active');
                 btn.textContent = 'OFF';
-                document.getElementById('musicBtn').textContent = '🔇 MUSIC OFF';
+                musicBtn.textContent = '🔇';
+                status.textContent = 'MUSIC OFF';
             }
         }
 
@@ -815,13 +840,16 @@
         function toggleMusic() {
             const audio = document.getElementById('bgMusic');
             const btn = document.getElementById('musicBtn');
+            const status = document.getElementById('musicStatus');
             
             if (audio.muted) {
                 audio.muted = false;
-                btn.textContent = '🔊 MUSIC ON';
+                btn.textContent = '🔊';
+                status.textContent = 'MUSIC ON';
             } else {
                 audio.muted = true;
-                btn.textContent = '🔇 MUSIC OFF';
+                btn.textContent = '🔇';
+                status.textContent = 'MUSIC OFF';
             }
         }
 
@@ -831,7 +859,8 @@
             audio.volume = 0.55; // 55% volume
             audio.muted = false; // Audio ON by default
             audio.play().catch(err => console.log('Audio autoplay prevented:', err));
-            document.getElementById('musicBtn').textContent = '🔊 MUSIC ON';
+            document.getElementById('musicBtn').textContent = '🔊';
+            document.getElementById('musicStatus').textContent = 'MUSIC ON';
         });
 
         // Close modals when clicking outside
