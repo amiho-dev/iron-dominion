@@ -357,6 +357,24 @@
             color: #cc9900;
         }
 
+        /* Version badge in bottom left */
+        .version-badge {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            color: #8b7355;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            z-index: 20;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .version-badge:hover {
+            opacity: 1;
+        }
+
         /* Corner decorations */
         .corner {
             position: fixed;
@@ -598,9 +616,11 @@
 
         <!-- Control bar -->
         <div class="control-bar">
-            <div class="version-info">IRON DOMINION v0.11.0 - © 2025</div>
             <button class="control-btn" id="musicBtn" onclick="toggleMusic()">🔇 MUSIC OFF</button>
         </div>
+
+        <!-- Version info in bottom left -->
+        <div class="version-badge">v0.11.0</div>
     </div>
 
     <!-- Settings Modal -->
