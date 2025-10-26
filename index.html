@@ -367,6 +367,128 @@
             z-index: 20;
         }
 
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border: 3px solid #ff9933;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(255, 153, 51, 0.4);
+            animation: modal-pop 0.3s ease-out;
+        }
+
+        @keyframes modal-pop {
+            0% {
+                transform: scale(0.8) translateY(-20px);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 2rem;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+            margin-bottom: 1.5rem;
+            text-align: center;
+            border-bottom: 2px solid #ff9933;
+            padding-bottom: 1rem;
+        }
+
+        .modal-body {
+            color: #ffb84d;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .settings-option {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #ff9933;
+            background: rgba(255, 153, 51, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 4px;
+        }
+
+        .settings-label {
+            color: #ffb84d;
+            font-size: 1rem;
+        }
+
+        .settings-control {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .toggle-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ff9933;
+            background: #333;
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            background: #ff9933;
+            color: #000;
+        }
+
+        .toggle-btn.active {
+            background: #ffd700;
+            color: #000;
+            border-color: #ffd700;
+        }
+
+        .modal-footer {
+            text-align: center;
+        }
+
+        .close-btn {
+            padding: 0.75rem 2rem;
+            border: 2px solid #ff9933;
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 20px rgba(255, 153, 51, 0.4);
+        }
+
         .corner-tl {
             top: 0.5rem;
             left: 0.5rem;
@@ -459,9 +581,9 @@
 
             <!-- Menu buttons -->
             <div class="buttons-container">
-                <button class="military-btn" onclick="handleClick('Multiplayer')">⚔ CHOOSE LOBBY (OR CREATE ONE)</button>
+                <button class="military-btn" onclick="handleBattle()">⚔ BATTLE</button>
                 <button class="military-btn" onclick="handleLoadGame()">📂 LOAD GAME</button>
-                <button class="military-btn" onclick="handleClick('Settings')">⚙ SETTINGS</button>
+                <button class="military-btn" onclick="handleSettings()">⚙ SETTINGS</button>
             </div>
 
             <!-- Hidden file input for IDW file upload -->
@@ -476,9 +598,62 @@
 
         <!-- Control bar -->
         <div class="control-bar">
-            <button class="control-btn" id="musicBtn" onclick="toggleMusic()">🔇 MUSIC OFF</button>
             <div class="version-info">IRON DOMINION v0.11.0 - © 2025</div>
-            <div class="status">READY</div>
+            <button class="control-btn" id="musicBtn" onclick="toggleMusic()">🔇 MUSIC OFF</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">SETTINGS</div>
+            <div class="modal-body">
+                <div class="settings-option">
+                    <span class="settings-label">MASTER VOLUME</span>
+                    <div class="settings-control">
+                        <input type="range" min="0" max="100" value="55" id="volumeSlider" onchange="handleVolumeChange(this.value)" style="width: 150px; cursor: pointer;">
+                        <span id="volumeDisplay">55%</span>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">MUSIC</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn" id="musicToggle" onclick="handleMusicToggle()">ON</button>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">EFFECTS</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn active" id="effectsToggle" onclick="handleEffectsToggle()">ON</button>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">FULLSCREEN</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn" id="fullscreenToggle" onclick="handleFullscreenToggle()">OFF</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="close-btn" onclick="closeSettings()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Battle Menu Modal -->
+    <div class="modal" id="battleModal">
+        <div class="modal-content">
+            <div class="modal-header">BATTLE</div>
+            <div class="modal-body" style="text-align: center;">
+                <p style="font-size: 1.5rem; color: #ff9933;">COMING SOON</p>
+                <p style="margin-top: 1rem;">The battle system is currently under development.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="close-btn" onclick="closeBattle()">BACK</button>
+            </div>
         </div>
     </div>
 
@@ -502,6 +677,97 @@
             // Add haptic feedback if available
             if (navigator.vibrate) {
                 navigator.vibrate(50);
+            }
+        }
+
+        // Handle Battle button
+        function handleBattle() {
+            document.getElementById('battleModal').classList.add('active');
+        }
+
+        // Close Battle menu
+        function closeBattle() {
+            document.getElementById('battleModal').classList.remove('active');
+        }
+
+        // Handle Settings button
+        function handleSettings() {
+            const audio = document.getElementById('bgMusic');
+            const musicToggle = document.getElementById('musicToggle');
+            const volumeSlider = document.getElementById('volumeSlider');
+            const volumeDisplay = document.getElementById('volumeDisplay');
+
+            // Update sliders with current values
+            if (!audio.muted) {
+                musicToggle.classList.add('active');
+                musicToggle.textContent = 'ON';
+            } else {
+                musicToggle.classList.remove('active');
+                musicToggle.textContent = 'OFF';
+            }
+
+            volumeSlider.value = Math.round(audio.volume * 100);
+            volumeDisplay.textContent = Math.round(audio.volume * 100) + '%';
+
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        // Close Settings menu
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        // Handle Volume change
+        function handleVolumeChange(value) {
+            const audio = document.getElementById('bgMusic');
+            audio.volume = value / 100;
+            document.getElementById('volumeDisplay').textContent = value + '%';
+        }
+
+        // Handle Music toggle
+        function handleMusicToggle() {
+            const audio = document.getElementById('bgMusic');
+            const btn = document.getElementById('musicToggle');
+            
+            if (audio.muted) {
+                audio.muted = false;
+                btn.classList.add('active');
+                btn.textContent = 'ON';
+                document.getElementById('musicBtn').textContent = '🔊 MUSIC ON';
+            } else {
+                audio.muted = true;
+                btn.classList.remove('active');
+                btn.textContent = 'OFF';
+                document.getElementById('musicBtn').textContent = '🔇 MUSIC OFF';
+            }
+        }
+
+        // Handle Effects toggle
+        function handleEffectsToggle() {
+            const btn = document.getElementById('effectsToggle');
+            btn.classList.toggle('active');
+            if (btn.classList.contains('active')) {
+                btn.textContent = 'ON';
+                console.log('Sound effects enabled');
+            } else {
+                btn.textContent = 'OFF';
+                console.log('Sound effects disabled');
+            }
+        }
+
+        // Handle Fullscreen toggle
+        function handleFullscreenToggle() {
+            const btn = document.getElementById('fullscreenToggle');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Fullscreen request failed:', err);
+                });
+                btn.classList.add('active');
+                btn.textContent = 'ON';
+            } else {
+                document.exitFullscreen();
+                btn.classList.remove('active');
+                btn.textContent = 'OFF';
             }
         }
 
@@ -546,6 +812,19 @@
             audio.muted = false; // Audio ON by default
             audio.play().catch(err => console.log('Audio autoplay prevented:', err));
             document.getElementById('musicBtn').textContent = '🔊 MUSIC ON';
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', (e) => {
+            const settingsModal = document.getElementById('settingsModal');
+            const battleModal = document.getElementById('battleModal');
+            
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
+            }
+            if (e.target === battleModal) {
+                battleModal.classList.remove('active');
+            }
         });
     </script>
 </body>
