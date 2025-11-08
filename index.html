@@ -573,6 +573,160 @@
             border-bottom: 2px solid;
         }
 
+        /* Login/Auth Form Styles */
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            color: #ffb84d;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input {
+            padding: 0.75rem;
+            border: 2px solid #ff9933;
+            background: rgba(0, 0, 0, 0.5);
+            color: #ffd700;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input::placeholder {
+            color: #8b7355;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #ffb84d;
+            box-shadow: 0 0 10px rgba(255, 184, 77, 0.3);
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #ffb84d;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            cursor: pointer;
+            width: 1rem;
+            height: 1rem;
+            accent-color: #ff9933;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .form-error {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-top: -0.5rem;
+        }
+
+        .form-success {
+            color: #51cf66;
+            font-size: 0.85rem;
+            margin-top: -0.5rem;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .form-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #ff9933;
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .form-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 15px rgba(255, 153, 51, 0.3);
+        }
+
+        .form-btn:active {
+            transform: scale(0.98);
+        }
+
+        .form-toggle {
+            text-align: center;
+            margin-top: 1rem;
+            color: #ffb84d;
+            font-size: 0.9rem;
+        }
+
+        .form-toggle-link {
+            color: #ffd700;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+        }
+
+        .form-toggle-link:hover {
+            color: #ffb84d;
+        }
+
+        .account-header {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .account-user {
+            color: #ffd700;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .account-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #ff9933;
+            background: transparent;
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .account-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 10px rgba(255, 153, 51, 0.3);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .military-btn {
@@ -582,6 +736,14 @@
 
             .title-main {
                 font-size: clamp(2rem, 6vw, 4rem);
+            }
+
+            .account-header {
+                top: auto;
+                bottom: 6rem;
+                right: 1rem;
+                flex-direction: column;
+                gap: 0.5rem;
             }
         }
 
@@ -637,6 +799,7 @@
 
             <!-- Menu buttons -->
             <div class="buttons-container">
+                <button class="military-btn" id="loginMenuBtn" onclick="showLogin()" style="display: none;">🔐 LOGIN / REGISTER</button>
                 <button class="military-btn" onclick="handleBattle()">⚔ BATTLE</button>
                 <button class="military-btn" onclick="handleLoadGame()">📂 LOAD GAME</button>
                 <button class="military-btn" onclick="handleSettings()">⚙ SETTINGS</button>
@@ -720,12 +883,354 @@
         </div>
     </div>
 
+    <!-- Account Header (Hidden until logged in) -->
+    <div class="account-header" id="accountHeader" style="display: none;">
+        <span class="account-user" id="accountUsername"></span>
+        <button class="account-btn" onclick="showLogoutConfirm()">LOGOUT</button>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" id="authTitle">LOGIN</div>
+            <div class="modal-body">
+                <form class="auth-form" id="authForm">
+                    <!-- Login Form -->
+                    <div id="loginForm">
+                        <div class="form-group">
+                            <label class="form-label" for="loginUsername">USERNAME</label>
+                            <input type="text" id="loginUsername" class="form-input" placeholder="Enter your username" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="loginPassword">PASSWORD</label>
+                            <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password" required>
+                        </div>
+
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="rememberMe" checked>
+                            <label for="rememberMe">Remember me for 30 days</label>
+                        </div>
+
+                        <div class="form-error" id="loginError"></div>
+                        <div class="form-success" id="loginSuccess"></div>
+
+                        <div class="form-buttons">
+                            <button type="button" class="form-btn" onclick="submitLogin()">LOGIN</button>
+                        </div>
+
+                        <div class="form-toggle">
+                            Don't have an account? <span class="form-toggle-link" onclick="switchToRegister()">REGISTER</span>
+                        </div>
+                    </div>
+
+                    <!-- Register Form (Hidden by default) -->
+                    <div id="registerForm" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label" for="registerUsername">USERNAME</label>
+                            <input type="text" id="registerUsername" class="form-input" placeholder="Choose username (3-30 chars)" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="registerEmail">EMAIL</label>
+                            <input type="email" id="registerEmail" class="form-input" placeholder="Enter your email" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="registerPassword">PASSWORD</label>
+                            <input type="password" id="registerPassword" class="form-input" placeholder="Create password (6+ chars)" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="registerPasswordConfirm">CONFIRM PASSWORD</label>
+                            <input type="password" id="registerPasswordConfirm" class="form-input" placeholder="Confirm password" required>
+                        </div>
+
+                        <div class="form-error" id="registerError"></div>
+                        <div class="form-success" id="registerSuccess"></div>
+
+                        <div class="form-buttons">
+                            <button type="button" class="form-btn" onclick="submitRegister()">REGISTER</button>
+                        </div>
+
+                        <div class="form-toggle">
+                            Already have an account? <span class="form-toggle-link" onclick="switchToLogin()">LOGIN</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="close-btn" onclick="closeAuth()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div class="modal" id="logoutConfirmModal">
+        <div class="modal-content">
+            <div class="modal-header">LOGOUT</div>
+            <div class="modal-body" style="text-align: center;">
+                <p>Are you sure you want to logout?</p>
+            </div>
+            <div class="modal-footer">
+                <div class="form-buttons" style="gap: 1rem;">
+                    <button class="form-btn" onclick="confirmLogout()">YES, LOGOUT</button>
+                    <button class="form-btn" onclick="closeLogoutConfirm()">CANCEL</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Audio element for background music -->
     <audio id="bgMusic" loop preload="auto">
         <source src="/assets/theme-music.mp3" type="audio/mpeg">
     </audio>
 
     <script>
+        // ========== AUTHENTICATION SYSTEM ==========
+
+        const API_BASE_URL = '/php';
+
+        // Check authentication status on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuthStatus();
+        });
+
+        // Check if user is authenticated
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/check-auth.php`, {
+                    credentials: 'include',
+                    method: 'GET'
+                });
+                const data = await response.json();
+
+                if (data.authenticated) {
+                    // User is logged in
+                    setUserLoggedIn(data.username);
+                } else {
+                    // User is not logged in
+                    setUserLoggedOut();
+                }
+            } catch (err) {
+                console.error('Auth check error:', err);
+                setUserLoggedOut();
+            }
+        }
+
+        // Set user as logged in
+        function setUserLoggedIn(username) {
+            // Hide login button
+            document.getElementById('loginMenuBtn').style.display = 'none';
+            
+            // Show account header
+            const accountHeader = document.getElementById('accountHeader');
+            accountHeader.style.display = 'flex';
+            document.getElementById('accountUsername').textContent = username;
+            
+            // Close any open modals
+            document.getElementById('loginModal').classList.remove('active');
+        }
+
+        // Set user as logged out
+        function setUserLoggedOut() {
+            // Show login button
+            document.getElementById('loginMenuBtn').style.display = 'block';
+            
+            // Hide account header
+            document.getElementById('accountHeader').style.display = 'none';
+        }
+
+        // Show login modal
+        function showLogin() {
+            document.getElementById('loginModal').classList.add('active');
+            switchToLogin();
+            clearAuthForms();
+        }
+
+        // Close auth modal
+        function closeAuth() {
+            document.getElementById('loginModal').classList.remove('active');
+            clearAuthForms();
+        }
+
+        // Clear all form fields and messages
+        function clearAuthForms() {
+            // Clear login form
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('rememberMe').checked = true;
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('loginSuccess').textContent = '';
+
+            // Clear register form
+            document.getElementById('registerUsername').value = '';
+            document.getElementById('registerEmail').value = '';
+            document.getElementById('registerPassword').value = '';
+            document.getElementById('registerPasswordConfirm').value = '';
+            document.getElementById('registerError').textContent = '';
+            document.getElementById('registerSuccess').textContent = '';
+        }
+
+        // Switch to login form
+        function switchToLogin() {
+            document.getElementById('authTitle').textContent = 'LOGIN';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        }
+
+        // Switch to register form
+        function switchToRegister() {
+            document.getElementById('authTitle').textContent = 'REGISTER';
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+
+        // Submit login form
+        async function submitLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
+            const errorDiv = document.getElementById('loginError');
+            const successDiv = document.getElementById('loginSuccess');
+
+            // Clear previous messages
+            errorDiv.textContent = '';
+            successDiv.textContent = '';
+
+            // Validate input
+            if (!username || !password) {
+                errorDiv.textContent = 'Please enter username and password';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login.php`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        remember_me: rememberMe
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    errorDiv.textContent = data.error || 'Login failed';
+                    return;
+                }
+
+                successDiv.textContent = 'Login successful! Redirecting...';
+                setUserLoggedIn(data.username);
+
+                // Close modal after delay
+                setTimeout(() => {
+                    closeAuth();
+                }, 1500);
+
+            } catch (err) {
+                errorDiv.textContent = 'Connection error: ' + err.message;
+            }
+        }
+
+        // Submit registration form
+        async function submitRegister() {
+            const username = document.getElementById('registerUsername').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+            const errorDiv = document.getElementById('registerError');
+            const successDiv = document.getElementById('registerSuccess');
+
+            // Clear previous messages
+            errorDiv.textContent = '';
+            successDiv.textContent = '';
+
+            // Validate input
+            if (!username || !email || !password || !passwordConfirm) {
+                errorDiv.textContent = 'Please fill in all fields';
+                return;
+            }
+
+            if (password !== passwordConfirm) {
+                errorDiv.textContent = 'Passwords do not match';
+                return;
+            }
+
+            if (password.length < 6) {
+                errorDiv.textContent = 'Password must be at least 6 characters';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/register.php`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        email,
+                        password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    errorDiv.textContent = data.error || 'Registration failed';
+                    return;
+                }
+
+                successDiv.textContent = 'Account created! Switching to login...';
+                clearAuthForms();
+
+                // Switch to login after delay
+                setTimeout(() => {
+                    switchToLogin();
+                    document.getElementById('loginUsername').value = username;
+                    document.getElementById('loginUsername').focus();
+                }, 1500);
+
+            } catch (err) {
+                errorDiv.textContent = 'Connection error: ' + err.message;
+            }
+        }
+
+        // Show logout confirmation
+        function showLogoutConfirm() {
+            document.getElementById('logoutConfirmModal').classList.add('active');
+        }
+
+        // Close logout confirmation
+        function closeLogoutConfirm() {
+            document.getElementById('logoutConfirmModal').classList.remove('active');
+        }
+
+        // Confirm logout
+        async function confirmLogout() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/logout.php`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    closeLogoutConfirm();
+                    setUserLoggedOut();
+                }
+            } catch (err) {
+                console.error('Logout error:', err);
+            }
+        }
+
+        // ========== END AUTHENTICATION SYSTEM ==========
+
         // Parallax effect on mouse movement
         document.addEventListener('mousemove', (e) => {
             const textureLayer = document.getElementById('textureLayer');
@@ -889,12 +1394,20 @@
         window.addEventListener('click', (e) => {
             const settingsModal = document.getElementById('settingsModal');
             const battleModal = document.getElementById('battleModal');
+            const loginModal = document.getElementById('loginModal');
+            const logoutConfirmModal = document.getElementById('logoutConfirmModal');
             
             if (e.target === settingsModal) {
                 settingsModal.classList.remove('active');
             }
             if (e.target === battleModal) {
                 battleModal.classList.remove('active');
+            }
+            if (e.target === loginModal) {
+                loginModal.classList.remove('active');
+            }
+            if (e.target === logoutConfirmModal) {
+                logoutConfirmModal.classList.remove('active');
             }
         });
     </script>
