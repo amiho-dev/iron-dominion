@@ -6,6 +6,13 @@
     <title>myDominion - Account Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'Ironmonger Black';
+            src: url('/assets/ironmonger-black.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,7 +20,7 @@
         }
 
         body {
-            font-family: 'Roboto Condensed', Arial, sans-serif;
+            font-family: 'Ironmonger Black', 'Roboto Condensed', Arial, sans-serif;
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
             min-height: 100vh;
             display: flex;
@@ -628,6 +635,7 @@
                         <button class="mgmt-tab-btn active" onclick="switchMgmtTab('profile')">Profile</button>
                         <button class="mgmt-tab-btn" onclick="switchMgmtTab('security')">Security</button>
                         <button class="mgmt-tab-btn" onclick="switchMgmtTab('preferences')">Preferences</button>
+                        <button class="mgmt-tab-btn" id="adminTabBtn" style="display: none;" onclick="switchMgmtTab('admin')">👑 Admin</button>
                     </div>
 
                     <!-- Profile Tab -->
@@ -699,6 +707,91 @@
                         <div class="checkbox-group">
                             <input type="checkbox" id="darkTheme" class="checkbox-input" checked onchange="savePreference('darkTheme')">
                             <label for="darkTheme" class="checkbox-label">Dark theme</label>
+                        </div>
+                    </div>
+
+                    <!-- Admin Tab -->
+                    <div id="adminTab" class="mgmt-tab-content">
+                        <h3>👑 Admin Management</h3>
+                        
+                        <!-- User List -->
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: #ffb84d; margin-bottom: 10px;">Users List</h4>
+                            <div id="usersList" style="max-height: 300px; overflow-y: auto; border: 1px solid rgba(218, 165, 32, 0.3); padding: 10px; border-radius: 4px;">
+                                <p style="color: #8b7355;">Loading users...</p>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(218, 165, 32, 0.3);">
+
+                        <!-- User Management -->
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: #ffb84d; margin-bottom: 10px;">Manage User</h4>
+                            
+                            <div class="form-group">
+                                <label class="form-label">User ID / Username</label>
+                                <input type="text" id="adminTargetUser" class="form-input" placeholder="Enter user ID or username">
+                            </div>
+
+                            <!-- Reset Password -->
+                            <div style="margin-bottom: 15px;">
+                                <label class="form-label">Reset Password</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="password" id="adminNewPassword" class="form-input" placeholder="New password (6+ chars)" style="flex: 1;">
+                                    <button class="btn btn-primary" onclick="handleAdminResetPassword()" style="flex-shrink: 0;">Reset</button>
+                                </div>
+                            </div>
+
+                            <!-- Update Email -->
+                            <div style="margin-bottom: 15px;">
+                                <label class="form-label">Update Email</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="email" id="adminNewEmail" class="form-input" placeholder="New email" style="flex: 1;">
+                                    <button class="btn btn-primary" onclick="handleAdminUpdateEmail()" style="flex-shrink: 0;">Update</button>
+                                </div>
+                            </div>
+
+                            <!-- Ban/Unban -->
+                            <div style="margin-bottom: 15px;">
+                                <label class="form-label">Account Status</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn" style="background-color: #ff6b6b; color: white; flex: 1;" onclick="handleAdminUserAction('ban')">🚫 Ban User</button>
+                                    <button class="btn" style="background-color: #6bff6b; color: black; flex: 1;" onclick="handleAdminUserAction('unban')">✓ Unban User</button>
+                                </div>
+                            </div>
+
+                            <!-- Mute/Unmute -->
+                            <div style="margin-bottom: 15px;">
+                                <label class="form-label">Chat Control</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn" style="background-color: #ffb84d; color: black; flex: 1;" onclick="handleAdminUserAction('mute')">🔇 Mute User</button>
+                                    <button class="btn" style="background-color: #ffd700; color: black; flex: 1;" onclick="handleAdminUserAction('unmute')">🔊 Unmute User</button>
+                                </div>
+                            </div>
+
+                            <!-- Send Warning -->
+                            <div style="margin-bottom: 15px;">
+                                <label class="form-label">Send Warning</label>
+                                <textarea id="adminWarningMessage" class="form-input" placeholder="Warning message (5-500 chars)" style="min-height: 60px; resize: vertical;"></textarea>
+                                <button class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="handleAdminSendWarning()">⚠ Issue Warning</button>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(218, 165, 32, 0.3);">
+
+                        <!-- Owner Only: Add Admin Section -->
+                        <div id="ownerOnlySection" style="margin-bottom: 20px; display: none;">
+                            <h4 style="color: #ffd700; margin-bottom: 10px;">👑 Owner Controls - Add Admin</h4>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Promote User to Admin</label>
+                                <input type="text" id="promoteTargetUser" class="form-input" placeholder="Enter user ID or username">
+                                <button class="btn" style="background-color: #ffd700; color: black; width: 100%; margin-top: 10px; font-weight: bold;" onclick="handleAddAdmin()">✨ Promote to Admin</button>
+                            </div>
+
+                            <div style="margin-top: 15px; padding: 10px; background: rgba(255, 215, 0, 0.1); border-left: 3px solid #ffd700; border-radius: 4px;">
+                                <p style="color: #ffb84d; font-size: 0.9rem;">⚠️ <strong>Owner Only:</strong> This section is only visible to the account owner (thatoneamiho). Use this to promote trusted admins.</p>
+                            </div>
                         </div>
                     </div>
 
@@ -841,6 +934,20 @@
         function showManagement() {
             document.getElementById('accountOverview').style.display = 'none';
             document.getElementById('accountManagement').style.display = 'block';
+            
+            // Check if user is admin (only owner)
+            const username = document.getElementById('displayUsername').textContent;
+            const isAdmin = username === 'thatoneamiho';
+            
+            if (isAdmin) {
+                document.getElementById('adminTabBtn').style.display = 'block';
+                document.getElementById('ownerOnlySection').style.display = 'block';
+                loadAdminUsers();
+            } else {
+                document.getElementById('adminTabBtn').style.display = 'none';
+                document.getElementById('ownerOnlySection').style.display = 'none';
+            }
+            
             switchMgmtTab('profile');
         }
 
@@ -1074,6 +1181,276 @@
             }
         }
 
+        // ========== ADMIN FUNCTIONS ==========
+
+        async function loadAdminUsers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin-get-users.php`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const usersList = document.getElementById('usersList');
+                    let html = `<strong>Total Users: ${data.total}</strong><hr style="margin: 10px 0;">`;
+                    
+                    data.users.forEach(user => {
+                        const status = user.is_active ? '✓ Active' : '🚫 Banned';
+                        html += `
+                            <div style="padding: 8px; margin-bottom: 8px; border-left: 3px solid #ffd700; background: rgba(255, 215, 0, 0.05); cursor: pointer;" onclick="selectAdminUser('${user.username}', ${user.id})">
+                                <div style="color: #ffd700; font-weight: bold;">${user.username}</div>
+                                <div style="color: #ffb84d; font-size: 0.85rem;">ID: ${user.id} • ${status}</div>
+                                <div style="color: #8b7355; font-size: 0.8rem;">📧 ${user.email}</div>
+                                <div style="color: #8b7355; font-size: 0.8rem;">📅 ${new Date(user.created_at).toLocaleDateString()}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    usersList.innerHTML = html;
+                } else {
+                    document.getElementById('usersList').innerHTML = `<p style="color: #ff6666;">${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Load users error:', error);
+                document.getElementById('usersList').innerHTML = '<p style="color: #ff6666;">Failed to load users</p>';
+            }
+        }
+
+        function selectAdminUser(username, userId) {
+            document.getElementById('adminTargetUser').value = username;
+            showSuccess(`Selected user: ${username}`);
+            setTimeout(clearMessages, 2000);
+        }
+
+        async function handleAdminResetPassword() {
+            const targetUser = document.getElementById('adminTargetUser').value.trim();
+            const newPassword = document.getElementById('adminNewPassword').value;
+
+            if (!targetUser || !newPassword) {
+                showError('Please enter username/ID and new password');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showError('Password must be at least 6 characters');
+                return;
+            }
+
+            try {
+                // First, get user ID if username was provided
+                let userId = parseInt(targetUser) || null;
+                
+                if (!userId) {
+                    showError('Please enter a valid user ID');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin-reset-password.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        new_password: newPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Password reset successfully!');
+                    document.getElementById('adminNewPassword').value = '';
+                    setTimeout(loadAdminUsers, 1500);
+                } else {
+                    showError(data.error || 'Failed to reset password');
+                }
+            } catch (error) {
+                console.error('Reset password error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleAdminUpdateEmail() {
+            const targetUser = document.getElementById('adminTargetUser').value.trim();
+            const newEmail = document.getElementById('adminNewEmail').value.trim();
+
+            if (!targetUser || !newEmail) {
+                showError('Please enter username/ID and new email');
+                return;
+            }
+
+            try {
+                let userId = parseInt(targetUser) || null;
+                
+                if (!userId) {
+                    showError('Please enter a valid user ID');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin-update-email.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        email: newEmail
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Email updated successfully!');
+                    document.getElementById('adminNewEmail').value = '';
+                    setTimeout(loadAdminUsers, 1500);
+                } else {
+                    showError(data.error || 'Failed to update email');
+                }
+            } catch (error) {
+                console.error('Update email error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleAdminUserAction(action) {
+            const targetUser = document.getElementById('adminTargetUser').value.trim();
+            const reason = `Admin action: ${action}`;
+
+            if (!targetUser) {
+                showError('Please select a user first');
+                return;
+            }
+
+            try {
+                let userId = parseInt(targetUser) || null;
+                
+                if (!userId) {
+                    showError('Please enter a valid user ID');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin-user-action.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        action: action,
+                        reason: reason
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess(data.message);
+                    setTimeout(loadAdminUsers, 1500);
+                } else {
+                    showError(data.error || 'Failed to perform action');
+                }
+            } catch (error) {
+                console.error('User action error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleAdminSendWarning() {
+            const targetUser = document.getElementById('adminTargetUser').value.trim();
+            const warningMessage = document.getElementById('adminWarningMessage').value.trim();
+
+            if (!targetUser || !warningMessage) {
+                showError('Please select a user and enter a warning message');
+                return;
+            }
+
+            if (warningMessage.length < 5 || warningMessage.length > 500) {
+                showError('Warning message must be 5-500 characters');
+                return;
+            }
+
+            try {
+                let userId = parseInt(targetUser) || null;
+                
+                if (!userId) {
+                    showError('Please enter a valid user ID');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin-send-warning.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        warning: warningMessage
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess(`Warning issued to ${data.username}`);
+                    document.getElementById('adminWarningMessage').value = '';
+                    setTimeout(clearMessages, 2000);
+                } else {
+                    showError(data.error || 'Failed to send warning');
+                }
+            } catch (error) {
+                console.error('Send warning error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleAddAdmin() {
+            const targetUser = document.getElementById('promoteTargetUser').value.trim();
+
+            if (!targetUser) {
+                showError('Please enter a user ID or username');
+                return;
+            }
+
+            try {
+                let userId = parseInt(targetUser) || null;
+                
+                if (!userId) {
+                    showError('Please enter a valid user ID');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin-add-admin.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess(`${data.username} has been promoted to admin! ✨`);
+                    document.getElementById('promoteTargetUser').value = '';
+                    setTimeout(loadAdminUsers, 1500);
+                } else {
+                    showError(data.error || 'Failed to promote user to admin');
+                }
+            } catch (error) {
+                console.error('Add admin error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
 
         function switchTab(tab) {
             // Hide/show forms
