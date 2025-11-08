@@ -448,6 +448,81 @@
             margin-bottom: 30px;
         }
 
+        .account-stats {
+            color: #a9a9a9;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        /* Management tabs */
+        .management-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(218, 165, 32, 0.3);
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .mgmt-tab-btn {
+            background: transparent;
+            border: none;
+            color: #ffb84d;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .mgmt-tab-btn.active {
+            color: #ffd700;
+            border-bottom: 2px solid #ffd700;
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+        }
+
+        .mgmt-tab-btn:hover:not(.active) {
+            color: #ffd700;
+        }
+
+        .mgmt-tab-content {
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .mgmt-tab-content.active {
+            display: block;
+        }
+
+        .mgmt-tab-content h3 {
+            color: #ffd700;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .danger-zone {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+
+        .danger-zone h3 {
+            margin-top: 0;
+        }
+
+        .danger-zone p {
+            color: #ffb84d;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
         /* Back to game button */
         .back-to-game {
             text-align: center;
@@ -536,10 +611,103 @@
 
             <!-- Account Info (Logged In) -->
             <div id="accountInfo" class="account-info">
-                <div class="account-username" id="displayUsername"></div>
-                <div class="account-email" id="displayEmail"></div>
-                <div class="account-created" id="displayCreated"></div>
-                <button class="btn btn-primary" onclick="logoutUser()">🔓 LOGOUT</button>
+                <div id="accountOverview" style="display: block;">
+                    <div class="account-username" id="displayUsername"></div>
+                    <div class="account-email" id="displayEmail"></div>
+                    <div class="account-created" id="displayCreated"></div>
+                    <div class="account-stats" id="accountStats"></div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="showManagement()">⚙ MANAGE ACCOUNT</button>
+                        <button class="btn btn-secondary" onclick="logoutUser()">🔓 LOGOUT</button>
+                    </div>
+                </div>
+
+                <!-- Account Management Panel -->
+                <div id="accountManagement" style="display: none;">
+                    <div class="management-tabs">
+                        <button class="mgmt-tab-btn active" onclick="switchMgmtTab('profile')">Profile</button>
+                        <button class="mgmt-tab-btn" onclick="switchMgmtTab('security')">Security</button>
+                        <button class="mgmt-tab-btn" onclick="switchMgmtTab('preferences')">Preferences</button>
+                    </div>
+
+                    <!-- Profile Tab -->
+                    <div id="profileTab" class="mgmt-tab-content active">
+                        <h3>📋 Profile Settings</h3>
+                        <form onsubmit="handleUpdateUsername(event)">
+                            <div class="form-group">
+                                <label class="form-label">Username</label>
+                                <input type="text" id="mgmtUsername" class="form-input" placeholder="New username (3-30 characters)">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Username</button>
+                        </form>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(218, 165, 32, 0.3);">
+
+                        <form onsubmit="handleUpdateEmail(event)">
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" id="mgmtEmail" class="form-input" placeholder="New email address">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Email</button>
+                        </form>
+                    </div>
+
+                    <!-- Security Tab -->
+                    <div id="securityTab" class="mgmt-tab-content">
+                        <h3>🔒 Security Settings</h3>
+                        <form onsubmit="handleChangePassword(event)">
+                            <div class="form-group">
+                                <label class="form-label">Current Password</label>
+                                <input type="password" id="currentPassword" class="form-input" placeholder="Enter current password" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">New Password</label>
+                                <input type="password" id="newPassword" class="form-input" placeholder="6+ characters" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Confirm New Password</label>
+                                <input type="password" id="confirmNewPassword" class="form-input" placeholder="Confirm new password" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Update Password</button>
+                        </form>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid rgba(218, 165, 32, 0.3);">
+
+                        <div class="danger-zone">
+                            <h3 style="color: #ff6b6b;">⚠ Danger Zone</h3>
+                            <p>Permanently delete your account and all associated data. This cannot be undone.</p>
+                            <button class="btn" style="background-color: #ff6b6b; color: white; margin-top: 10px;" onclick="handleDeleteAccount()">Delete Account</button>
+                        </div>
+                    </div>
+
+                    <!-- Preferences Tab -->
+                    <div id="preferencesTab" class="mgmt-tab-content">
+                        <h3>⚡ Preferences</h3>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="emailNotifications" class="checkbox-input" checked onchange="savePreference('emailNotifications')">
+                            <label for="emailNotifications" class="checkbox-label">Receive email notifications</label>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="privacyMode" class="checkbox-input" onchange="savePreference('privacyMode')">
+                            <label for="privacyMode" class="checkbox-label">Privacy mode (hide from player list)</label>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="darkTheme" class="checkbox-input" checked onchange="savePreference('darkTheme')">
+                            <label for="darkTheme" class="checkbox-label">Dark theme</label>
+                        </div>
+                    </div>
+
+                    <!-- Back Button -->
+                    <div class="button-group">
+                        <button class="btn btn-secondary" onclick="hideManagement()">← Back to Account</button>
+                    </div>
+                </div>
+
                 <div class="back-to-game">
                     <a href="index.html">← Return to Iron Dominion</a>
                 </div>
@@ -619,7 +787,10 @@
         const API_BASE_URL = '/php';
 
         // Check if user is already logged in on page load
-        document.addEventListener('DOMContentLoaded', checkAuthStatus);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPreferences();
+            checkAuthStatus();
+        });
 
         async function checkAuthStatus() {
             try {
@@ -650,12 +821,259 @@
             document.getElementById('displayUsername').textContent = user.username;
             document.getElementById('displayEmail').textContent = user.email;
             document.getElementById('displayCreated').textContent = 'Logged in successfully • Welcome Commander!';
+            
+            // Populate management form fields
+            document.getElementById('mgmtUsername').value = '';
+            document.getElementById('mgmtEmail').value = user.email || '';
+            
+            // Load account stats
+            loadAccountStats(user.username);
+            
+            // Reset management view to overview
+            hideManagement();
         }
 
         function showAuthForms() {
             document.getElementById('authForms').style.display = 'block';
             document.getElementById('accountInfo').classList.remove('show');
         }
+
+        function showManagement() {
+            document.getElementById('accountOverview').style.display = 'none';
+            document.getElementById('accountManagement').style.display = 'block';
+            switchMgmtTab('profile');
+        }
+
+        function hideManagement() {
+            document.getElementById('accountOverview').style.display = 'block';
+            document.getElementById('accountManagement').style.display = 'none';
+        }
+
+        function switchMgmtTab(tab) {
+            // Hide all tabs
+            document.getElementById('profileTab').classList.remove('active');
+            document.getElementById('securityTab').classList.remove('active');
+            document.getElementById('preferencesTab').classList.remove('active');
+
+            // Show selected tab
+            document.getElementById(tab + 'Tab').classList.add('active');
+
+            // Update tab buttons
+            document.querySelectorAll('.mgmt-tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Clear messages
+            clearMessages();
+        }
+
+        async function loadAccountStats(username) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-account-stats.php?username=${encodeURIComponent(username)}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const statsDiv = document.getElementById('accountStats');
+                    statsDiv.innerHTML = `
+                        <div>📅 Account created: ${new Date(data.created_at).toLocaleDateString()}</div>
+                        <div>🔄 Last login: ${new Date(data.last_login).toLocaleDateString()}</div>
+                        <div>📊 Total logins: ${data.login_count}</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Stats load error:', error);
+            }
+        }
+
+        async function handleUpdateUsername(event) {
+            event.preventDefault();
+            const newUsername = document.getElementById('mgmtUsername').value.trim();
+
+            if (!newUsername) {
+                showError('Please enter a new username');
+                return;
+            }
+
+            if (newUsername.length < 3 || newUsername.length > 30) {
+                showError('Username must be 3-30 characters');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/update-username.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username: newUsername })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Username updated successfully!');
+                    setTimeout(() => {
+                        checkAuthStatus();
+                    }, 1500);
+                } else {
+                    showError(data.error || 'Failed to update username');
+                }
+            } catch (error) {
+                console.error('Update username error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleUpdateEmail(event) {
+            event.preventDefault();
+            const newEmail = document.getElementById('mgmtEmail').value.trim();
+
+            if (!newEmail) {
+                showError('Please enter a new email');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/update-email.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: newEmail })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Email updated successfully!');
+                    setTimeout(() => {
+                        checkAuthStatus();
+                    }, 1500);
+                } else {
+                    showError(data.error || 'Failed to update email');
+                }
+            } catch (error) {
+                console.error('Update email error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleChangePassword(event) {
+            event.preventDefault();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmNewPassword').value;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showError('Please fill in all password fields');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showError('New password must be at least 6 characters');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showError('New passwords do not match');
+                return;
+            }
+
+            if (currentPassword === newPassword) {
+                showError('New password must be different from current password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/update-password.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Password updated successfully!');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmNewPassword').value = '';
+                    setTimeout(() => {
+                        hideManagement();
+                    }, 1500);
+                } else {
+                    showError(data.error || 'Failed to update password');
+                }
+            } catch (error) {
+                console.error('Update password error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        async function handleDeleteAccount() {
+            const confirmed = confirm('⚠️ WARNING: This will permanently delete your account and all data. Are you absolutely sure?');
+            if (!confirmed) return;
+
+            const doubleConfirmed = confirm('This action cannot be undone. Type "DELETE" in your head to confirm.');
+            if (!doubleConfirmed) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/delete-account.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Account deleted. Redirecting...');
+                    setTimeout(() => {
+                        checkAuthStatus();
+                    }, 2000);
+                } else {
+                    showError(data.error || 'Failed to delete account');
+                }
+            } catch (error) {
+                console.error('Delete account error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        function savePreference(prefName) {
+            const checkbox = document.getElementById(prefName);
+            const prefs = JSON.parse(localStorage.getItem('userPrefs') || '{}');
+            prefs[prefName] = checkbox.checked;
+            localStorage.setItem('userPrefs', JSON.stringify(prefs));
+            showSuccess('Preference saved!');
+            setTimeout(clearMessages, 2000);
+        }
+
+        function loadPreferences() {
+            const prefs = JSON.parse(localStorage.getItem('userPrefs') || '{}');
+            if (prefs.emailNotifications !== undefined) {
+                document.getElementById('emailNotifications').checked = prefs.emailNotifications;
+            }
+            if (prefs.privacyMode !== undefined) {
+                document.getElementById('privacyMode').checked = prefs.privacyMode;
+            }
+            if (prefs.darkTheme !== undefined) {
+                document.getElementById('darkTheme').checked = prefs.darkTheme;
+            }
+        }
+
 
         function switchTab(tab) {
             // Hide/show forms
