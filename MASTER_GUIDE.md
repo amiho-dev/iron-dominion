@@ -245,14 +245,14 @@ npm run build
 
 ### Deploy to Production
 
-1. **Upload `/php/` folder to your webserver** (thatoneamiho.cc)
+1. **Upload `/php/` folder to your webserver** (dominion subdomain)
    - All 5 PHP files ready to deploy
    - Already configured with your database credentials
 
 2. **Initialize Database** (one-time setup)
-   - Visit: `https://thatoneamiho.cc/php/db-config.php?action=init`
+   - Visit: `https://dominion.thatoneamiho.cc/php/db-config.php?action=init`
    - Creates `users` table automatically
-   - You'll see: `{"message": "Database initialized successfully"}`
+   - You'll see: `{"success": true, "message": "Users table created or already exists"}`
 
 3. **Upload Game Files**
    - Upload `/build/` contents to your webserver (if using React)
@@ -674,10 +674,10 @@ npm run build
 
 ### Option 4: Self-Hosted (Your Webserver)
 1. Run `npm run build`
-2. Upload `/build` contents to webserver
+2. Upload `/build` contents to webserver (dominion subdomain)
 3. Upload `/php` folder (authentication backend)
 4. Configure database credentials in `php/db-config.php`
-5. Initialize database via URL
+5. Initialize database via URL: `https://dominion.thatoneamiho.cc/php/db-config.php?action=init`
 6. Test login/register
 
 ### Pre-Deployment Checklist
@@ -847,7 +847,7 @@ git pull               # Pull changes
 ## 🎯 NEXT STEPS
 
 ### For Players
-1. Visit `https://thatoneamiho.cc`
+1. Visit `https://dominion.thatoneamiho.cc`
 2. Click "🔐 LOGIN / REGISTER"
 3. Create an account
 4. Login and enjoy!

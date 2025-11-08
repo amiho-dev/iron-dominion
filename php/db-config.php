@@ -77,14 +77,8 @@ function initializeDatabase() {
  * This should only be accessible during first setup
  */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'init') {
-    // Simple security check - remove or enhance this in production
-    $init_key = isset($_GET['key']) ? $_GET['key'] : '';
-    if ($init_key === 'setup-iron-dominion-db') {
-        echo json_encode(initializeDatabase());
-    } else {
-        http_response_code(403);
-        echo json_encode(['error' => 'Unauthorized']);
-    }
+    // Initialize database
+    echo json_encode(initializeDatabase());
     exit;
 }
 
