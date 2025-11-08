@@ -107,15 +107,8 @@ try {
     if ($remember_me) {
         $cookie_token = bin2hex(random_bytes(32));
         $cookie_expires = time() + REMEMBER_ME_DURATION;
-        $cookie_hash = hash('sha256', $cookie_token . $user['id']);
         
-        // Store cookie token in database (for validation on subsequent requests)
-        $stmt = $conn->prepare("
-            INSERT INTO users (id) VALUES (?)
-            ON DUPLICATE KEY UPDATE remember_token = ?, remember_expires = FROM_UNIXTIME(?)
-        ");
-        
-        // Create a simpler approach - store in session for now, production would use a separate table
+        // Set HttpOnly cookies for security (not accessible via JavaScript)
         setcookie(
             'iron_dominion_remember',
             $cookie_token,
