@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iron Dominion - Grand Strategy Game</title>
+    
+    <!-- Subdomain Redirect Script -->
+    <script>
+        // Redirect if accessing from subdomain to root domain
+        (function() {
+            const hostname = window.location.hostname;
+            const rootDomain = 'thatoneamiho.cc';
+            
+            // Check if on a subdomain (but not the root domain itself)
+            if (hostname !== rootDomain && hostname.endsWith('.' + rootDomain)) {
+                // Redirect to root domain with the same path
+                window.location.href = 'https://' + rootDomain + window.location.pathname + window.location.search + window.location.hash;
+            }
+        })();
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         @font-face {
@@ -799,7 +814,7 @@
 
             <!-- Menu buttons -->
             <div class="buttons-container">
-                <button class="military-btn" id="loginMenuBtn" onclick="window.location.href='myDominion.html'" style="display: none;">🔐 myDOMINION</button>
+                <button class="military-btn" id="loginMenuBtn" onclick="window.location.href='myTAD.html'" style="display: none;">🔐 myTAD</button>
                 <button class="military-btn" onclick="handleBattle()">⚔ BATTLE</button>
                 <button class="military-btn" onclick="handleLoadGame()">📂 LOAD GAME</button>
                 <button class="military-btn" onclick="handleSettings()">⚙ SETTINGS</button>
@@ -886,7 +901,7 @@
     <!-- Account Header (Hidden until logged in) -->
     <div class="account-header" id="accountHeader" style="display: none;">
         <span class="account-user" id="accountUsername"></span>
-        <button class="account-btn" onclick="window.location.href='myDominion.html'">⚙ myDOMINION</button>
+        <button class="account-btn" onclick="window.location.href='myTAD.html'">⚙ myTAD</button>
     </div>
 
     <!-- Audio element for background music -->
