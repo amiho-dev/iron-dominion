@@ -881,6 +881,35 @@
                     loadStats();
                     checkAdmin(data.username);
                     loadPreferences();
+
+                    // Handle redirect after login
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const redirectUrl = urlParams.get('redirect');
+                    if (redirectUrl) {
+                        // Decode the redirect URL and validate it's safe
+                        try {
+                            const decodedUrl = decodeURIComponent(redirectUrl);
+                            const redirectObj = new URL(decodedUrl);
+                            const currentHostname = window.location.hostname;
+                            const redirectHostname = redirectObj.hostname;
+                            
+                            // Allow redirects to same domain and all subdomains of thatoneamiho.cc
+                            const isSafeDomain = 
+                                redirectHostname === currentHostname || 
+                                redirectHostname.endsWith('.thatoneamiho.cc') ||
+                                currentHostname.endsWith('.thatoneamiho.cc') && redirectHostname.endsWith('.thatoneamiho.cc');
+                            
+                            if (isSafeDomain) {
+                                setTimeout(() => {
+                                    window.location.href = decodedUrl;
+                                }, 500);
+                            } else {
+                                console.warn('Redirect blocked - unsafe domain:', redirectHostname);
+                            }
+                        } catch (e) {
+                            console.warn('Invalid redirect URL:', redirectUrl);
+                        }
+                    }
                 } else {
                     document.getElementById('authSection').classList.remove('hidden');
                     document.getElementById('accountSection').classList.add('hidden');
