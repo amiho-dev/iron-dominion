@@ -12,7 +12,7 @@
  */
 
 // Database credentials - UPDATE THESE FOR YOUR PLESK DATABASE
-define('DB_HOST', 'localhost:3306');      // thatoneamiho.cc MariaDB
+define('DB_HOST', 'dominion.thatoneamiho.cc:3306');      // dominion subdomain MariaDB
 define('DB_USER', 'dominion');            // MariaDB username
 define('DB_PASS', '6^cz45nR}zPL}yN');     // MariaDB password
 define('DB_NAME', 'irondominion');        // MariaDB database name

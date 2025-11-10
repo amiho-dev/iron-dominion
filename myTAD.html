@@ -607,6 +607,7 @@
                         <button class="tab-btn" onclick="switchMgmtTab('security')">🔐 Security</button>
                         <button class="tab-btn" onclick="switchMgmtTab('preferences')">⚙ Preferences</button>
                         <button class="tab-btn" id="adminTabBtn" style="display: none;" onclick="switchMgmtTab('admin')">👑 Admin</button>
+                        <button class="tab-btn" id="gamersTabBtn" style="display: none;" onclick="switchMgmtTab('gamers')">🎮 Gamers</button>
                     </div>
 
                     <!-- Profile Tab -->
@@ -744,6 +745,69 @@
                         </div>
                     </div>
 
+                    <!-- Gamers Tab (Admin Only) -->
+                    <div id="gamersTab" class="tab-content">
+                        <div class="title">🎮 Gamers Management</div>
+                        <p class="subtitle">Monitor and manage active players</p>
+
+                        <!-- Active Gamers List -->
+                        <div style="margin-bottom: 20px;">
+                            <div style="color: #10b981; margin-bottom: 10px; font-weight: 600;">Active Gamers</div>
+                            <div id="gamersList" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(16, 185, 129, 0.3); padding: 15px; border-radius: 15px; background: rgba(16, 185, 129, 0.05);">
+                                <p style="color: #8b7355;">Loading gamers...</p>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--glass-border);">
+
+                        <!-- Gamer Management -->
+                        <div style="margin-bottom: 20px;">
+                            <div style="color: #10b981; margin-bottom: 15px; font-weight: 600;">Manage Gamer</div>
+
+                            <div class="form-group">
+                                <label class="form-label">Gamer ID / Username</label>
+                                <input type="text" id="gamerTargetUser" class="form-input" placeholder="Enter gamer ID or username">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Game Actions</label>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button class="btn" style="background: rgba(59, 130, 246, 0.3); flex: 1; min-width: 150px;" onclick="handleGamerAction('kick')">🚪 Kick Gamer</button>
+                                    <button class="btn" style="background: rgba(239, 68, 68, 0.3); flex: 1; min-width: 150px;" onclick="handleGamerAction('banfromgame')">⛔ Ban from Game</button>
+                                    <button class="btn" style="background: rgba(16, 185, 129, 0.3); flex: 1; min-width: 150px;" onclick="handleGamerAction('unbanfromgame')">✓ Unban from Game</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Game Message</label>
+                                <textarea id="gamerMessage" class="form-input" placeholder="Send message to gamer (max 200 chars)" maxlength="200" style="min-height: 60px; resize: vertical;"></textarea>
+                                <button class="btn" style="width: 100%; margin-top: 10px;" onclick="handleSendGamerMessage()">💬 Send Message</button>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">View Gamer Stats</label>
+                                <button class="btn" style="background: rgba(139, 92, 246, 0.3); width: 100%;" onclick="handleViewGamerStats()">📊 View Stats</button>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--glass-border);">
+
+                        <!-- Server Controls (Owner Only) -->
+                        <div id="gamerOwnerSection" style="margin-bottom: 20px; display: none;">
+                            <div style="color: #ffd700; margin-bottom: 15px; font-weight: 600;">👑 Owner Controls - Server</div>
+
+                            <div class="form-group">
+                                <label class="form-label">Global Message</label>
+                                <textarea id="globalMessage" class="form-input" placeholder="Message to all gamers (max 300 chars)" maxlength="300" style="min-height: 80px; resize: vertical;"></textarea>
+                                <button class="btn" style="background: #ffd700; color: #000; width: 100%; margin-top: 10px; font-weight: bold;" onclick="handleBroadcastMessage()">📢 Broadcast</button>
+                            </div>
+
+                            <div style="margin-top: 15px; padding: 15px; background: rgba(255, 215, 0, 0.1); border-left: 3px solid #ffd700; border-radius: 10px;">
+                                <p style="color: #ffb84d; font-size: 0.9rem;">⚠️ <strong>Owner Only:</strong> This section is only visible to the owner (thatoneamiho).</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Back Button -->
                     <button class="back-link" onclick="hideManagement()" style="display: block; width: 100%; text-align: left; margin-top: 30px;">← Back to Account</button>
                 </div>
@@ -755,7 +819,7 @@
 
     <script>
         const rootDomain = window.location.origin;
-        const API_BASE_URL = `${rootDomain}/php`;
+        const API_BASE_URL = 'localhost/php';
 
         // Message handling
         function showMessage(message, type = 'info') {
@@ -1105,11 +1169,16 @@
             const isAdmin = username === 'thatoneamiho';
             if (isAdmin) {
                 document.getElementById('adminTabBtn').style.display = 'block';
+                document.getElementById('gamersTabBtn').style.display = 'block';
                 document.getElementById('ownerOnlySection').style.display = 'block';
+                document.getElementById('gamerOwnerSection').style.display = 'block';
                 loadAdminUsers();
+                loadGamers();
             } else {
                 document.getElementById('adminTabBtn').style.display = 'none';
+                document.getElementById('gamersTabBtn').style.display = 'none';
                 document.getElementById('ownerOnlySection').style.display = 'none';
+                document.getElementById('gamerOwnerSection').style.display = 'none';
             }
         }
 
@@ -1316,6 +1385,185 @@
                     setTimeout(loadAdminUsers, 1500);
                 } else {
                     showError(data.error || 'Failed to promote user');
+                }
+            } catch (error) {
+                showError('Connection error');
+            }
+        }
+
+        // ===== GAMERS MANAGEMENT FUNCTIONS =====
+
+        async function loadGamers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-gamers.php`, { credentials: 'include' });
+                const data = await response.json();
+                if (data.success) {
+                    let html = `<strong>Active Gamers: ${data.total}</strong><hr style="margin: 10px 0;">`;
+                    if (data.gamers && data.gamers.length > 0) {
+                        data.gamers.forEach(gamer => {
+                            const status = gamer.game_banned ? '⛔ Banned' : '✓ Active';
+                            html += `
+                                <div style="padding: 8px; margin-bottom: 8px; border-left: 3px solid #10b981; background: rgba(16, 185, 129, 0.05); cursor: pointer;" onclick="selectGamer('${gamer.username}', ${gamer.id})">
+                                    <div style="color: #10b981; font-weight: bold;">${gamer.username}</div>
+                                    <div style="color: #5eead4; font-size: 0.85rem;">ID: ${gamer.id} • ${status}</div>
+                                    <div style="color: #8b7355; font-size: 0.8rem;">⏱️ Last Active: ${gamer.last_game_activity || 'Never'}</div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html += '<p style="color: #8b7355;">No active gamers</p>';
+                    }
+                    document.getElementById('gamersList').innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Load gamers error:', error);
+                document.getElementById('gamersList').innerHTML = '<p style="color: #ef4444;">Error loading gamers</p>';
+            }
+        }
+
+        function selectGamer(username, userId) {
+            document.getElementById('gamerTargetUser').value = username;
+            showSuccess(`Selected gamer: ${username}`);
+        }
+
+        async function handleGamerAction(action) {
+            const targetUser = document.getElementById('gamerTargetUser').value.trim();
+
+            if (!targetUser) {
+                showError('Please select a gamer first');
+                return;
+            }
+
+            let userId = parseInt(targetUser) || null;
+            if (!userId) {
+                showError('Please enter a valid gamer ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/gamer-action.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, action: action })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showSuccess(data.message || `Action '${action}' completed!`);
+                    setTimeout(loadGamers, 1500);
+                } else {
+                    showError(data.error || 'Failed to perform action');
+                }
+            } catch (error) {
+                showError('Connection error');
+            }
+        }
+
+        async function handleSendGamerMessage() {
+            const targetUser = document.getElementById('gamerTargetUser').value.trim();
+            const message = document.getElementById('gamerMessage').value.trim();
+
+            if (!targetUser || !message) {
+                showError('Please select a gamer and enter a message');
+                return;
+            }
+
+            if (message.length < 1 || message.length > 200) {
+                showError('Message must be 1-200 characters');
+                return;
+            }
+
+            let userId = parseInt(targetUser) || null;
+            if (!userId) {
+                showError('Please enter a valid gamer ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/send-gamer-message.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, message: message })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showSuccess(`Message sent to ${data.username}!`);
+                    document.getElementById('gamerMessage').value = '';
+                } else {
+                    showError(data.error || 'Failed to send message');
+                }
+            } catch (error) {
+                showError('Connection error');
+            }
+        }
+
+        async function handleViewGamerStats() {
+            const targetUser = document.getElementById('gamerTargetUser').value.trim();
+
+            if (!targetUser) {
+                showError('Please select a gamer first');
+                return;
+            }
+
+            let userId = parseInt(targetUser) || null;
+            if (!userId) {
+                showError('Please enter a valid gamer ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-gamer-stats.php?user_id=${userId}`, {
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    let stats = `📊 Gamer Stats for ${data.username}\n\n`;
+                    stats += `ID: ${data.id}\n`;
+                    stats += `Account Created: ${new Date(data.created_at).toLocaleDateString()}\n`;
+                    stats += `Last Login: ${data.last_login ? new Date(data.last_login).toLocaleDateString() : 'Never'}\n`;
+                    stats += `Game Status: ${data.game_banned ? '🚫 Banned from game' : '✓ Active'}\n`;
+                    stats += `Chat Status: ${data.is_muted ? '🔇 Muted' : '✓ Chat enabled'}\n`;
+                    stats += `Account Status: ${data.is_active ? '✓ Active' : '🚫 Banned'}\n`;
+                    alert(stats);
+                } else {
+                    showError(data.error || 'Failed to load gamer stats');
+                }
+            } catch (error) {
+                showError('Connection error');
+            }
+        }
+
+        async function handleBroadcastMessage() {
+            const message = document.getElementById('globalMessage').value.trim();
+
+            if (!message) {
+                showError('Please enter a message');
+                return;
+            }
+
+            if (message.length < 1 || message.length > 300) {
+                showError('Message must be 1-300 characters');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/broadcast-message.php`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showSuccess(`Broadcast sent to ${data.recipients} gamers!`);
+                    document.getElementById('globalMessage').value = '';
+                } else {
+                    showError(data.error || 'Failed to broadcast');
                 }
             } catch (error) {
                 showError('Connection error');
