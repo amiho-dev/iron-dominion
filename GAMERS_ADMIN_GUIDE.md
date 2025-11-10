@@ -277,5 +277,6 @@ Since myTAD is hosted on `my.thatoneamiho.cc`, the full endpoint URLs are:
 
 ---
 
-**Last Updated**: November 9, 2025
+**Version**: 0.2
+**Last Updated**: November 10, 2025
 **Status**: Ready for Implementation

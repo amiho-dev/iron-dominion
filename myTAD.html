@@ -574,7 +574,7 @@
                 <div class="header">
                     <div>
                         <h1 class="logo gradient-text">myTAD</h1>
-                        <p class="subtitle" style="margin: 0;">Welcome, <span id="displayUsername"></span></p>
+                        <p class="subtitle" style="margin: 0;">Logged in as: <span id="displayUsername" style="color: var(--gradient-end); font-weight: 600;"></span></p>
                     </div>
                     <button class="logout-btn" onclick="handleLogout()">🔓 Logout</button>
                 </div>
@@ -868,7 +868,15 @@
                 const data = await response.json();
                 if (data.success) {
                     showSuccess('Login successful!');
-                    setTimeout(checkAuthStatus, 1500);
+                    setTimeout(() => {
+                        const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+                        if (redirectUrl) {
+                            sessionStorage.removeItem('redirectAfterLogin');
+                            window.location.href = redirectUrl;
+                        } else {
+                            checkAuthStatus();
+                        }
+                    }, 1500);
                 } else {
                     showError(data.error || 'Login failed');
                 }
@@ -904,7 +912,15 @@
                 const data = await response.json();
                 if (data.success) {
                     showSuccess('Account created! Logging in...');
-                    setTimeout(checkAuthStatus, 1500);
+                    setTimeout(() => {
+                        const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+                        if (redirectUrl) {
+                            sessionStorage.removeItem('redirectAfterLogin');
+                            window.location.href = redirectUrl;
+                        } else {
+                            checkAuthStatus();
+                        }
+                    }, 1500);
                 } else {
                     showError(data.error || 'Registration failed');
                 }
@@ -946,7 +962,13 @@
                     checkAdmin(data.username);
                     loadPreferences();
 
-                    // Handle redirect after login
+                    // Remove redirect flag from URL since user is already logged in
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else {
+                    document.getElementById('authSection').classList.remove('hidden');
+                    document.getElementById('accountSection').classList.add('hidden');
+                    
+                    // Handle redirect after login (only if not authenticated yet)
                     const urlParams = new URLSearchParams(window.location.search);
                     const redirectUrl = urlParams.get('redirect');
                     if (redirectUrl) {
@@ -963,10 +985,9 @@
                                 redirectHostname.endsWith('.thatoneamiho.cc') ||
                                 currentHostname.endsWith('.thatoneamiho.cc') && redirectHostname.endsWith('.thatoneamiho.cc');
                             
+                            // Store redirect URL for after login
                             if (isSafeDomain) {
-                                setTimeout(() => {
-                                    window.location.href = decodedUrl;
-                                }, 500);
+                                sessionStorage.setItem('redirectAfterLogin', decodedUrl);
                             } else {
                                 console.warn('Redirect blocked - unsafe domain:', redirectHostname);
                             }
@@ -974,9 +995,6 @@
                             console.warn('Invalid redirect URL:', redirectUrl);
                         }
                     }
-                } else {
-                    document.getElementById('authSection').classList.remove('hidden');
-                    document.getElementById('accountSection').classList.add('hidden');
                 }
             } catch (error) {
                 console.error('Auth check error:', error);
