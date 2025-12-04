@@ -438,24 +438,47 @@ async function generateWorldMap() {
 
         // 2. Load Provinces (Geometry)
         loadingText.innerText = "Loading province data...";
-        const provResponse = await fetch('assets/provinces.json');
-        const provData = await provResponse.json();
+        let provData = { features: [] };
+        try {
+            const provResponse = await fetch('assets/provinces.json');
+            if (provResponse.ok) {
+                provData = await provResponse.json();
+            } else {
+                console.warn("Provinces file not found, falling back to country maps.");
+            }
+        } catch (e) {
+            console.warn("Failed to load provinces, falling back.", e);
+        }
         
         let provIndex = 0;
+        const countriesWithProvinces = new Set();
         
-        // Process provinces
-        for (let i = 0; i < provData.features.length; i++) {
-            const feature = provData.features[i];
-            const ownerId = feature.properties.adm0_a3;
-            
-            // Only add if owner exists in our countries list
-            if (countries[ownerId]) {
-                createProvince(provIndex++, feature, ownerId);
+        // Process real provinces
+        if (provData && provData.features) {
+            for (let i = 0; i < provData.features.length; i++) {
+                const feature = provData.features[i];
+                const ownerId = feature.properties.adm0_a3;
+                
+                // Only add if owner exists in our countries list
+                if (countries[ownerId]) {
+                    createProvince(provIndex++, feature, ownerId);
+                    countriesWithProvinces.add(ownerId);
+                }
+                
+                if (i % 100 === 0) {
+                    loadingText.innerText = `Processing provinces... (${i}/${provData.features.length})`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
             }
-            
-            if (i % 50 === 0) {
-                loadingText.innerText = `Processing provinces... (${i}/${provData.features.length})`;
-                await new Promise(r => setTimeout(r, 0));
+        }
+
+        // 3. Fallback for countries without provinces (or if province file missing)
+        loadingText.innerText = "Generating national territories...";
+        for (let feature of worldData.features) {
+            if (!countriesWithProvinces.has(feature.id)) {
+                // Use the country geometry itself as a single province
+                // This ensures every country appears on the map
+                createProvince(provIndex++, feature, feature.id);
             }
         }
 
