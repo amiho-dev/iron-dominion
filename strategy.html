@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iron Dominion: World Strategy</title>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
         :root {
             --bg-color: #0a0a0a;
@@ -229,6 +230,12 @@
     <!-- MAP AREA -->
     <div id="map-area">
         <canvas id="gameCanvas"></canvas>
+        <div id="loading-overlay" style="position: absolute; top:0; left:0; width:100%; height:100%; background: #000; display: flex; justify-content: center; align-items: center; z-index: 500;">
+            <div style="text-align: center;">
+                <h2 style="color: var(--accent-color);">GENERATING WORLD...</h2>
+                <p id="loading-text" style="color: #888;">Subdividing provinces...</p>
+            </div>
+        </div>
         <div id="tooltip"></div>
 
         <!-- PROVINCE PANEL -->
@@ -252,7 +259,14 @@
             </div>
             
             <div id="admin-actions" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
-                <button class="btn btn-block" style="background: #442222;" onclick="game.actions.cheatAnnex()">⚠ FORCE ANNEX</button>
+                <div id="diplomacy-section" style="display: none;">
+                    <div style="color: #aaa; font-size: 0.9em; margin-bottom: 5px;">DIPLOMACY</div>
+                    <div id="diplomacy-status" style="margin-bottom: 5px; font-size: 0.8em;">Status: Neutral</div>
+                    <button class="btn btn-block" id="btn-nap" onclick="game.diplomacy.proposeNAP()">Non-Aggression Pact</button>
+                    <button class="btn btn-block" id="btn-justify" onclick="game.diplomacy.startJustification()">Justify War Goal</button>
+                    <button class="btn btn-block btn-danger" id="btn-declare-war" onclick="game.diplomacy.declareWar()">DECLARE WAR</button>
+                </div>
+                <button class="btn btn-block" style="background: #442222; margin-top: 10px;" onclick="game.actions.cheatAnnex()">⚠ FORCE ANNEX</button>
             </div>
         </div>
 
@@ -320,8 +334,8 @@ class Province {
     constructor(id, feature) {
         this.id = id;
         this.feature = feature;
-        this.owner = feature.id; // Initially owned by the country itself
-        this.name = feature.properties.name;
+        this.owner = null; // Set externally now
+        this.name = "Province";
         this.army = 50 + Math.floor(Math.random() * 100);
         this.buildings = { factory: 0, fort: 0 };
         this.neighbors = [];
@@ -393,21 +407,27 @@ async function generateWorldMap() {
     provinces = [];
     countries = {};
     
+    const loadingText = document.getElementById('loading-text');
+    
     try {
         const response = await fetch('assets/world.json');
         const data = await response.json();
         
-        data.features.forEach((feature, index) => {
-            // Determine color and name
+        let provIndex = 0;
+
+        // Process each country
+        for (let i = 0; i < data.features.length; i++) {
+            const feature = data.features[i];
+            loadingText.innerText = `Processing ${feature.properties.name}...`;
+            
+            // 1. Setup Country Data
             let color = `hsl(${Math.random() * 360}, 60%, 40%)`;
             let name = feature.properties.name;
             
             if (MAJOR_NATIONS[feature.id]) {
                 color = MAJOR_NATIONS[feature.id].color;
-                // name = MAJOR_NATIONS[feature.id].name; // Use GeoJSON name usually, but can override
             }
 
-            // Create country entry
             countries[feature.id] = {
                 id: feature.id,
                 name: name,
@@ -415,33 +435,129 @@ async function generateWorldMap() {
                 manpower: 1000 + Math.floor(Math.random() * 2000),
                 industry: 5 + Math.floor(Math.random() * 10),
                 ai: true,
-                aggression: Math.random()
+                aggression: Math.random(),
+                diplomacy: { pacts: [], justifications: [], wars: [] }
             };
 
-            // Create province
-            const p = new Province(index, feature);
-            provinces.push(p);
-        });
+            // 2. Generate Provinces (Subdivision)
+            // First, flatten MultiPolygons to Polygons
+            let polys = [];
+            if (feature.geometry.type === 'Polygon') {
+                polys.push(feature);
+            } else if (feature.geometry.type === 'MultiPolygon') {
+                // Split MultiPolygon into individual Polygons
+                feature.geometry.coordinates.forEach(coords => {
+                    polys.push(turf.polygon(coords, feature.properties));
+                });
+            }
+
+            // Now process each polygon chunk
+            for (let poly of polys) {
+                const area = turf.area(poly);
+                // Thresholds for subdivision (in square meters, roughly)
+                // Russia is huge, islands are small.
+                // 100,000,000,000 is roughly a small country size
+                
+                let numSplits = 1;
+                if (MAJOR_NATIONS[feature.id]) numSplits = 4; // Base for majors
+                if (area > 500000000000) numSplits += 2;
+                if (area > 2000000000000) numSplits += 4;
+                if (area > 10000000000000) numSplits += 8; // Russia/Canada size
+                
+                // Don't split tiny islands
+                if (area < 50000000000) numSplits = 1;
+
+                if (numSplits > 1) {
+                    try {
+                        const bbox = turf.bbox(poly);
+                        // Generate random points
+                        const points = turf.randomPoint(numSplits, {bbox: bbox});
+                        
+                        // Voronoi requires points to be inside the bbox, which they are.
+                        // But we need to clip the voronoi cells to the polygon.
+                        // Turf voronoi returns a FeatureCollection of Polygons.
+                        const voronoi = turf.voronoi(points, {bbox: bbox});
+                        
+                        voronoi.features.forEach(cell => {
+                            if (cell) {
+                                const clipped = turf.intersect(cell, poly);
+                                if (clipped) {
+                                    // Clean up geometry if it became MultiPolygon (rare but possible)
+                                    if (clipped.geometry.type === 'Polygon') {
+                                        createProvince(provIndex++, clipped, feature.id);
+                                    } else if (clipped.geometry.type === 'MultiPolygon') {
+                                        clipped.geometry.coordinates.forEach(c => {
+                                            createProvince(provIndex++, turf.polygon(c), feature.id);
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    } catch (err) {
+                        // Fallback if geometry fails
+                        console.warn("Subdivision failed for", feature.properties.name, err);
+                        createProvince(provIndex++, poly, feature.id);
+                    }
+                } else {
+                    createProvince(provIndex++, poly, feature.id);
+                }
+            }
+            
+            // Yield to UI thread every few countries to update loading text
+            if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+        }
 
         // Calculate neighbors (simple distance based for now)
         // This is O(N^2) but N is small (~180)
+        // With provinces N might be ~600. O(N^2) is 360,000 checks. Fast enough.
+        loadingText.innerText = "Calculating logistics...";
+        await new Promise(r => setTimeout(r, 10));
+
         provinces.forEach(p1 => {
             provinces.forEach(p2 => {
                 if (p1 === p2) return;
+                // Use bounding box check first for speed
+                if (p1.bounds.maxX < p2.bounds.minX || p1.bounds.minX > p2.bounds.maxX ||
+                    p1.bounds.maxY < p2.bounds.minY || p1.bounds.minY > p2.bounds.maxY) return;
+
                 const dx = p1.center.x - p2.center.x;
                 const dy = p1.center.y - p2.center.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 15) { // Threshold for neighbors in lat/lon degrees
+                if (dist < 5) { // Tighter threshold for provinces
                     p1.neighbors.push(p2.id);
                 }
             });
         });
         
         console.log(`Generated ${provinces.length} provinces.`);
+        document.getElementById('loading-overlay').style.display = 'none';
         
     } catch (e) {
         console.error("Failed to load map data", e);
+        document.getElementById('loading-text').innerText = "Error loading map data!";
     }
+}
+
+function createProvince(id, feature, ownerId) {
+    // Ensure properties exist
+    feature.properties = feature.properties || {};
+    feature.properties.name = countries[ownerId].name; // Inherit country name for now
+    
+    // Create province object
+    // We need to modify the Province class slightly or just pass the feature
+    // The Province class expects 'feature' to have 'id' which is the country ID usually.
+    // But here 'id' is the province index.
+    
+    // Let's manually construct to match existing structure
+    const p = new Province(id, feature);
+    p.owner = ownerId; // Explicitly set owner
+    p.name = `${countries[ownerId].name} ${generateRegionName()}`;
+    provinces.push(p);
+}
+
+const REGION_NAMES = ["Region", "Sector", "Zone", "District", "Area", "Territory", "Province", "State"];
+function generateRegionName() {
+    return REGION_NAMES[Math.floor(Math.random() * REGION_NAMES.length)] + " " + Math.floor(Math.random()*100);
 }
 
 function generateCityName(region) {
@@ -559,6 +675,31 @@ game = {
 
         Object.values(countries).forEach(c => {
             if (c.id === "NEUTRAL") return;
+            
+            // Diplomacy Updates
+            if (c.diplomacy) {
+                // Decrease pact duration
+                c.diplomacy.pacts = c.diplomacy.pacts.filter(p => {
+                    p.turns--;
+                    if (p.turns <= 0) {
+                        if (c.id === this.playerCountry) game.log(`Non-Aggression Pact with ${countries[p.with].name} expired.`, "info");
+                        return false;
+                    }
+                    return true;
+                });
+
+                // Increase justification progress
+                c.diplomacy.justifications.forEach(j => {
+                    if (j.progress < 100) {
+                        j.progress += 2; // 2% per day
+                        if (j.progress >= 100) {
+                            j.progress = 100;
+                            if (c.id === this.playerCountry) game.log(`War Goal against ${countries[j.target].name} is ready!`, "war");
+                        }
+                    }
+                });
+            }
+
             const myProvs = provinces.filter(p => p.owner === c.id);
             if (myProvs.length === 0) return;
 
@@ -577,6 +718,48 @@ game = {
     },
 
     processAI: function(country, myProvs) {
+        // AI Diplomacy Logic
+        if (country.diplomacy) {
+            // Check neighbors
+            const neighbors = new Set();
+            myProvs.forEach(p => {
+                p.neighbors.forEach(nid => {
+                    const n = provinces.find(pr => pr.id === nid);
+                    if (n.owner !== country.id) neighbors.add(n.owner);
+                });
+            });
+            
+            neighbors.forEach(targetId => {
+                if (targetId === "NEUTRAL") return;
+                const target = countries[targetId];
+                
+                // If aggressive and strong, justify war
+                if (country.aggression > 0.7 && country.manpower > target.manpower * 1.2) {
+                    if (!country.diplomacy.wars.includes(targetId) && 
+                        !country.diplomacy.pacts.find(p => p.with === targetId) &&
+                        !country.diplomacy.justifications.find(j => j.target === targetId)) {
+                            
+                        country.diplomacy.justifications.push({ target: targetId, progress: 0 });
+                        // Only log if player is involved or nearby? For now log all major events
+                        if (targetId === this.playerCountry) {
+                            this.log(`WARNING: ${country.name} is justifying a war goal against you!`, "war");
+                        }
+                    }
+                }
+                
+                // If justification ready, declare war
+                const justification = country.diplomacy.justifications.find(j => j.target === targetId);
+                if (justification && justification.progress >= 100) {
+                    if (!country.diplomacy.wars.includes(targetId)) {
+                        country.diplomacy.wars.push(targetId);
+                        countries[targetId].diplomacy.wars.push(country.id);
+                        this.log(`${country.name} declared war on ${target.name}!`, "war");
+                        country.diplomacy.justifications = country.diplomacy.justifications.filter(j => j.target !== targetId);
+                    }
+                }
+            });
+        }
+
         if (country.manpower > 500) {
             const borderProv = myProvs.find(p => p.neighbors.some(n => provinces.find(pr=>pr.id===n).owner !== country.id));
             if (borderProv) {
@@ -587,7 +770,12 @@ game = {
         myProvs.forEach(p => {
             if (p.army > 150) {
                 const targets = p.neighbors.map(nid => provinces.find(pr => pr.id === nid));
-                const weakTarget = targets.find(t => t.owner !== country.id && t.army < p.army * 0.6);
+                // Only attack if at war
+                const weakTarget = targets.find(t => {
+                    return t.owner !== country.id && 
+                           country.diplomacy.wars.includes(t.owner) && 
+                           t.army < p.army * 0.6;
+                });
                 if (weakTarget) this.resolveCombat(p, weakTarget);
             }
         });
@@ -789,6 +977,89 @@ game = {
         this.render();
     },
 
+    diplomacy: {
+        proposeNAP: function() {
+            if (game.selectedProvId === null) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const targetId = p.owner;
+            const myId = game.playerCountry;
+            
+            if (targetId === myId) return;
+            
+            const me = countries[myId];
+            const them = countries[targetId];
+            
+            // Check if already exists
+            if (me.diplomacy.pacts.find(p => p.with === targetId)) {
+                game.log(`Already have a pact with ${them.name}`, "info");
+                return;
+            }
+            
+            // Simple AI acceptance chance
+            if (them.aggression > 0.8) {
+                game.log(`${them.name} refused the Non-Aggression Pact.`, "war");
+            } else {
+                me.diplomacy.pacts.push({ type: 'NAP', with: targetId, turns: 30 });
+                them.diplomacy.pacts.push({ type: 'NAP', with: myId, turns: 30 });
+                game.log(`Signed Non-Aggression Pact with ${them.name} (30 days)`, "peace");
+                game.updateUI();
+            }
+        },
+        
+        startJustification: function() {
+            if (game.selectedProvId === null) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const targetId = p.owner;
+            const myId = game.playerCountry;
+            
+            if (targetId === myId) return;
+            
+            const me = countries[myId];
+            
+            if (me.diplomacy.justifications.find(j => j.target === targetId)) {
+                game.log(`Already justifying against ${countries[targetId].name}`, "info");
+                return;
+            }
+            
+            me.diplomacy.justifications.push({ target: targetId, progress: 0 });
+            game.log(`Started justifying war goal against ${countries[targetId].name}...`, "war");
+            game.updateUI();
+        },
+        
+        declareWar: function() {
+            if (game.selectedProvId === null) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const targetId = p.owner;
+            const myId = game.playerCountry;
+            
+            if (targetId === myId) return;
+            
+            const me = countries[myId];
+            const justification = me.diplomacy.justifications.find(j => j.target === targetId);
+            
+            if (!justification || justification.progress < 100) {
+                game.log(`Cannot declare war! Justification not ready.`, "info");
+                return;
+            }
+            
+            // Check NAP
+            if (me.diplomacy.pacts.find(p => p.with === targetId)) {
+                game.log(`Cannot declare war! Non-Aggression Pact active.`, "info");
+                return;
+            }
+            
+            if (!me.diplomacy.wars.includes(targetId)) {
+                me.diplomacy.wars.push(targetId);
+                countries[targetId].diplomacy.wars.push(myId);
+                game.log(`WAR DECLARED ON ${countries[targetId].name}!`, "war");
+                
+                // Remove justification after use
+                me.diplomacy.justifications = me.diplomacy.justifications.filter(j => j.target !== targetId);
+                game.updateUI();
+            }
+        }
+    },
+
     actions: {
         recruit: function() {
             if (game.selectedProvId === null) return;
@@ -839,6 +1110,25 @@ game = {
     },
 
     resolveCombat: function(attackerProv, defenderProv) {
+        // Check if at war
+        const attackerCountry = countries[attackerProv.owner];
+        const defenderCountry = countries[defenderProv.owner];
+        
+        if (attackerProv.owner === this.playerCountry) {
+             if (!attackerCountry.diplomacy.wars.includes(defenderProv.owner)) {
+                 this.log("You must declare war first!", "info");
+                 return;
+             }
+        } else {
+            // AI vs AI or AI vs Player logic
+            // For now, assume AI declares war instantly if it attacks (simplified)
+            if (!attackerCountry.diplomacy.wars.includes(defenderProv.owner)) {
+                attackerCountry.diplomacy.wars.push(defenderProv.owner);
+                defenderCountry.diplomacy.wars.push(attackerProv.owner);
+                this.log(`${attackerCountry.name} declared war on ${defenderCountry.name}!`, "war");
+            }
+        }
+
         if (attackerProv.army < 20) return;
         const attackForce = Math.floor(attackerProv.army * 0.8);
         attackerProv.army -= attackForce;
@@ -894,7 +1184,48 @@ game = {
 
             const isMine = prov.owner === this.playerCountry;
             document.getElementById('owner-actions').style.display = isMine ? 'block' : 'none';
-            document.getElementById('admin-actions').style.display = !isMine ? 'block' : 'none';
+            
+            // Diplomacy UI Logic
+            const diplomacySection = document.getElementById('diplomacy-section');
+            const adminActions = document.getElementById('admin-actions');
+            
+            if (!isMine) {
+                diplomacySection.style.display = 'block';
+                const me = countries[this.playerCountry];
+                const targetId = prov.owner;
+                
+                // Update Status Text
+                let status = "Neutral";
+                if (me.diplomacy.wars.includes(targetId)) status = "AT WAR";
+                else if (me.diplomacy.pacts.find(p => p.with === targetId)) status = "Non-Aggression Pact";
+                
+                document.getElementById('diplomacy-status').innerText = `Status: ${status}`;
+                document.getElementById('diplomacy-status').style.color = status === "AT WAR" ? "#ff4444" : (status === "Neutral" ? "#aaa" : "#44ff44");
+                
+                // Update Buttons
+                const napBtn = document.getElementById('btn-nap');
+                const justifyBtn = document.getElementById('btn-justify');
+                const warBtn = document.getElementById('btn-declare-war');
+                
+                // NAP Button
+                const hasNap = me.diplomacy.pacts.find(p => p.with === targetId);
+                napBtn.disabled = hasNap || me.diplomacy.wars.includes(targetId);
+                napBtn.innerText = hasNap ? `NAP Active (${hasNap.turns}d)` : "Non-Aggression Pact";
+                
+                // Justify Button
+                const justification = me.diplomacy.justifications.find(j => j.target === targetId);
+                justifyBtn.disabled = !!justification || me.diplomacy.wars.includes(targetId);
+                justifyBtn.innerText = justification ? `Justifying... ${Math.floor(justification.progress)}%` : "Justify War Goal";
+                
+                // War Button
+                warBtn.disabled = !justification || justification.progress < 100 || hasNap || me.diplomacy.wars.includes(targetId);
+                
+            } else {
+                diplomacySection.style.display = 'none';
+            }
+            
+            // Admin actions always visible for now (or move cheat annex to bottom)
+            // document.getElementById('admin-actions').style.display = !isMine ? 'block' : 'none';
         } else {
             provPanel.style.display = 'none';
         }
@@ -917,6 +1248,9 @@ game = {
         // Flip Y because canvas Y is down, Lat is up
         ctx.scale(1, -1);
 
+        // Draw Water/Background
+        // (Already filled)
+
         provinces.forEach(p => {
             ctx.beginPath();
             p.polygons.forEach(poly => {
@@ -932,7 +1266,17 @@ game = {
             } else {
                 ctx.fillStyle = countries[p.owner].color;
             }
+            
+            // Add shadow effect for "3D" look
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 2;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 1;
+            
             ctx.fill();
+            
+            // Reset shadow for stroke
+            ctx.shadowColor = 'transparent';
 
             ctx.strokeStyle = CONFIG.colors.border;
             ctx.lineWidth = 0.5 / this.camera.zoom;
