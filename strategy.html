@@ -410,17 +410,13 @@ async function generateWorldMap() {
     const loadingText = document.getElementById('loading-text');
     
     try {
-        const response = await fetch('assets/world.json');
-        const data = await response.json();
+        // 1. Load Countries (Metadata)
+        loadingText.innerText = "Loading country data...";
+        const worldResponse = await fetch('assets/world.json');
+        const worldData = await worldResponse.json();
         
-        let provIndex = 0;
-
-        // Process each country
-        for (let i = 0; i < data.features.length; i++) {
-            const feature = data.features[i];
-            loadingText.innerText = `Processing ${feature.properties.name}...`;
-            
-            // 1. Setup Country Data
+        // Process countries
+        for (let feature of worldData.features) {
             let color = `hsl(${Math.random() * 360}, 60%, 40%)`;
             let name = feature.properties.name;
             
@@ -438,78 +434,32 @@ async function generateWorldMap() {
                 aggression: Math.random(),
                 diplomacy: { pacts: [], justifications: [], wars: [] }
             };
-
-            // 2. Generate Provinces (Subdivision)
-            // First, flatten MultiPolygons to Polygons
-            let polys = [];
-            if (feature.geometry.type === 'Polygon') {
-                polys.push(feature);
-            } else if (feature.geometry.type === 'MultiPolygon') {
-                // Split MultiPolygon into individual Polygons
-                feature.geometry.coordinates.forEach(coords => {
-                    polys.push(turf.polygon(coords, feature.properties));
-                });
-            }
-
-            // Now process each polygon chunk
-            for (let poly of polys) {
-                const area = turf.area(poly);
-                // Thresholds for subdivision (in square meters, roughly)
-                // Russia is huge, islands are small.
-                // 100,000,000,000 is roughly a small country size
-                
-                let numSplits = 1;
-                if (MAJOR_NATIONS[feature.id]) numSplits = 4; // Base for majors
-                if (area > 500000000000) numSplits += 2;
-                if (area > 2000000000000) numSplits += 4;
-                if (area > 10000000000000) numSplits += 8; // Russia/Canada size
-                
-                // Don't split tiny islands
-                if (area < 50000000000) numSplits = 1;
-
-                if (numSplits > 1) {
-                    try {
-                        const bbox = turf.bbox(poly);
-                        // Generate random points
-                        const points = turf.randomPoint(numSplits, {bbox: bbox});
-                        
-                        // Voronoi requires points to be inside the bbox, which they are.
-                        // But we need to clip the voronoi cells to the polygon.
-                        // Turf voronoi returns a FeatureCollection of Polygons.
-                        const voronoi = turf.voronoi(points, {bbox: bbox});
-                        
-                        voronoi.features.forEach(cell => {
-                            if (cell) {
-                                const clipped = turf.intersect(cell, poly);
-                                if (clipped) {
-                                    // Clean up geometry if it became MultiPolygon (rare but possible)
-                                    if (clipped.geometry.type === 'Polygon') {
-                                        createProvince(provIndex++, clipped, feature.id);
-                                    } else if (clipped.geometry.type === 'MultiPolygon') {
-                                        clipped.geometry.coordinates.forEach(c => {
-                                            createProvince(provIndex++, turf.polygon(c), feature.id);
-                                        });
-                                    }
-                                }
-                            }
-                        });
-                    } catch (err) {
-                        // Fallback if geometry fails
-                        console.warn("Subdivision failed for", feature.properties.name, err);
-                        createProvince(provIndex++, poly, feature.id);
-                    }
-                } else {
-                    createProvince(provIndex++, poly, feature.id);
-                }
-            }
-            
-            // Yield to UI thread every few countries to update loading text
-            if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
         }
 
-        // Calculate neighbors (simple distance based for now)
-        // This is O(N^2) but N is small (~180)
-        // With provinces N might be ~600. O(N^2) is 360,000 checks. Fast enough.
+        // 2. Load Provinces (Geometry)
+        loadingText.innerText = "Loading province data...";
+        const provResponse = await fetch('assets/provinces.json');
+        const provData = await provResponse.json();
+        
+        let provIndex = 0;
+        
+        // Process provinces
+        for (let i = 0; i < provData.features.length; i++) {
+            const feature = provData.features[i];
+            const ownerId = feature.properties.adm0_a3;
+            
+            // Only add if owner exists in our countries list
+            if (countries[ownerId]) {
+                createProvince(provIndex++, feature, ownerId);
+            }
+            
+            if (i % 50 === 0) {
+                loadingText.innerText = `Processing provinces... (${i}/${provData.features.length})`;
+                await new Promise(r => setTimeout(r, 0));
+            }
+        }
+
+        // Calculate neighbors
         loadingText.innerText = "Calculating logistics...";
         await new Promise(r => setTimeout(r, 10));
 
@@ -523,7 +473,8 @@ async function generateWorldMap() {
                 const dx = p1.center.x - p2.center.x;
                 const dy = p1.center.y - p2.center.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 5) { // Tighter threshold for provinces
+                // Increased threshold for real provinces which can be larger
+                if (dist < 15) { 
                     p1.neighbors.push(p2.id);
                 }
             });
@@ -534,24 +485,17 @@ async function generateWorldMap() {
         
     } catch (e) {
         console.error("Failed to load map data", e);
-        document.getElementById('loading-text').innerText = "Error loading map data!";
+        document.getElementById('loading-text').innerText = "Error loading map data: " + e.message;
     }
 }
 
 function createProvince(id, feature, ownerId) {
-    // Ensure properties exist
-    feature.properties = feature.properties || {};
-    feature.properties.name = countries[ownerId].name; // Inherit country name for now
+    // Use real name if available
+    const name = feature.properties.name || `${countries[ownerId].name} Territory`;
     
-    // Create province object
-    // We need to modify the Province class slightly or just pass the feature
-    // The Province class expects 'feature' to have 'id' which is the country ID usually.
-    // But here 'id' is the province index.
-    
-    // Let's manually construct to match existing structure
     const p = new Province(id, feature);
-    p.owner = ownerId; // Explicitly set owner
-    p.name = `${countries[ownerId].name} ${generateRegionName()}`;
+    p.owner = ownerId;
+    p.name = name;
     provinces.push(p);
 }
 
@@ -735,7 +679,9 @@ game = {
                 
                 // If aggressive and strong, justify war
                 if (country.aggression > 0.7 && country.manpower > target.manpower * 1.2) {
-                    if (!country.diplomacy.wars.includes(targetId) && 
+                    // AI will NOT justify against player
+                    if (targetId !== this.playerCountry && 
+                        !country.diplomacy.wars.includes(targetId) && 
                         !country.diplomacy.pacts.find(p => p.with === targetId) &&
                         !country.diplomacy.justifications.find(j => j.target === targetId)) {
                             
