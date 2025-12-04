@@ -295,7 +295,7 @@
 
 <script>
 /**
- * IRON DOMINION - World Strategy Engine [R25]
+ * IRON DOMINION - World Strategy Engine [R30]
  */
 
 const CONFIG = {
@@ -467,7 +467,17 @@ game = {
         this.canvas.height = mapArea.clientHeight;
         
         generateWorldMap();
-        this.initSetup(); // Changed from initUI
+        
+        // Check for country parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const countryParam = urlParams.get('country');
+        
+        if (countryParam && countries[countryParam]) {
+            this.startGame(countryParam);
+        } else {
+            this.initSetup();
+        }
+        
         this.render();
         
         // Input Handlers
@@ -482,8 +492,9 @@ game = {
             this.render();
         });
         
-        // Timer starts after selection
-        this.log("Waiting for commander selection...", "info");
+        if (!this.playerCountry) {
+            this.log("Waiting for commander selection...", "info");
+        }
     },
 
     initSetup: function() {

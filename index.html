@@ -791,7 +791,7 @@
 
             <!-- Version -->
             <div style="text-align: center; margin-top: 15px; font-size: 0.85rem; color: #b8860b; letter-spacing: 0.05em;">
-                R25
+                R30
             </div>
 
             <!-- Separator -->
@@ -895,6 +895,20 @@
             <!-- Singleplayer View -->
             <div class="modal-body" id="singleplayerView" style="display: none;">
                 <h3 style="color: #ff9933; margin-bottom: 1.5rem; text-align: center;">SELECT CAMPAIGN</h3>
+                
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid #444;">
+                    <div style="color: #ffd700; font-weight: bold; margin-bottom: 10px;">SELECT NATION</div>
+                    <select id="campaign-country-select" style="width: 100%; padding: 10px; background: #222; color: #fff; border: 1px solid #8b7355; font-family: inherit;">
+                        <option value="USA">United Republic (USA)</option>
+                        <option value="EU">European Fed. (EU)</option>
+                        <option value="RUS">Eurasian Pact (RUS)</option>
+                        <option value="CHN">Dragon Alliance (CHN)</option>
+                        <option value="AFR">African Union (AFR)</option>
+                        <option value="SAM">Libertad Coalition (SAM)</option>
+                        <option value="AUS">Pacific Defense (AUS)</option>
+                    </select>
+                </div>
+
                 <div style="display: flex; flex-direction: column; gap: 1rem; max-height: 300px; overflow-y: auto; padding-right: 10px;">
                     <button class="settings-option" style="width: 100%; text-align: left; cursor: pointer;" onclick="startDemoBattle('Tutorial')">
                         <div>
@@ -1065,7 +1079,8 @@
 
         function startDemoBattle(campaign) {
             // alert(`Starting demo campaign: ${campaign}\n\nLoading assets...`);
-            window.location.href = 'strategy.html';
+            const country = document.getElementById('campaign-country-select').value;
+            window.location.href = `strategy.html?country=${country}`;
         }
 
         function joinServer(serverName) {
