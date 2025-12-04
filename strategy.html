@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iron Dominion: Strategy Map</title>
+    <title>Iron Dominion: World Strategy</title>
     <style>
         :root {
             --bg-color: #0a0a0a;
@@ -11,6 +11,8 @@
             --accent-color: #ff9933;
             --border-color: #8b7355;
             --panel-bg: rgba(20, 20, 20, 0.95);
+            --success: #44ff44;
+            --danger: #ff4444;
         }
 
         body {
@@ -48,7 +50,7 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
             box-shadow: -5px 0 15px rgba(0,0,0,0.5);
             z-index: 10;
         }
@@ -67,12 +69,16 @@
             margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .stat-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 5px;
+            font-size: 0.9em;
         }
 
         .btn {
@@ -86,16 +92,36 @@
             text-transform: uppercase;
             font-family: inherit;
             transition: all 0.2s;
+            font-size: 0.85em;
+            font-weight: bold;
         }
 
         .btn:hover:not(:disabled) {
             background: var(--accent-color);
             color: #000;
+            box-shadow: 0 0 10px var(--accent-color);
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            border-color: #444;
+        }
+
+        .btn-danger { border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover:not(:disabled) { background: var(--danger); color: #000; box-shadow: 0 0 10px var(--danger); }
+
+        .btn-success { border-color: var(--success); color: var(--success); }
+        .btn-success:hover:not(:disabled) { background: var(--success); color: #000; box-shadow: 0 0 10px var(--success); }
+
+        select {
+            width: 100%;
+            background: #222;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 5px;
+            font-family: inherit;
+            margin-bottom: 10px;
         }
 
         #log-panel {
@@ -103,12 +129,14 @@
             overflow-y: auto;
             font-size: 0.8em;
             color: #aaa;
-            max-height: 200px;
+            max-height: 150px;
+            border-top: 1px solid #333;
+            padding-top: 5px;
         }
 
         .log-entry {
             margin-bottom: 4px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #222;
             padding-bottom: 2px;
         }
 
@@ -126,9 +154,9 @@
             z-index: 100;
             font-size: 0.9em;
             max-width: 200px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
         }
 
-        /* Overlay for game over/pause */
         #overlay {
             position: absolute;
             top: 0;
@@ -141,9 +169,10 @@
             align-items: center;
             flex-direction: column;
             z-index: 1000;
+            backdrop-filter: blur(5px);
         }
 
-        h1 { margin: 0 0 20px 0; color: var(--accent-color); }
+        h1 { margin: 0 0 20px 0; color: var(--accent-color); text-shadow: 0 0 10px var(--accent-color); }
     </style>
 </head>
 <body>
@@ -152,182 +181,249 @@
     <div id="map-area">
         <canvas id="gameCanvas"></canvas>
         <div id="tooltip"></div>
-        <div style="position: absolute; top: 10px; left: 10px; color: #555; font-size: 0.8em;">
-            IRON DOMINION: TACTICAL MAP [R21]
+        <div style="position: absolute; top: 10px; left: 10px; color: #555; font-size: 0.8em; pointer-events: none;">
+            IRON DOMINION: GLOBAL COMMAND [R25]
         </div>
     </div>
     
     <div id="sidebar">
+        <!-- Global Controls -->
         <div class="panel">
-            <div class="panel-header">Nation Status</div>
-            <div class="stat-row"><span>Nation:</span> <span id="player-nation" style="color: #4488ff">PLAYER</span></div>
-            <div class="stat-row"><span>Manpower:</span> <span id="player-manpower">0</span></div>
-            <div class="stat-row"><span>Industry:</span> <span id="player-industry">0</span></div>
-            <div class="stat-row"><span>Provinces:</span> <span id="player-provinces">0</span></div>
+            <div class="panel-header">Command Center</div>
+            <label style="font-size: 0.8em; color: #aaa;">ACTIVE NATION</label>
+            <select id="country-selector" onchange="game.switchPlayer(this.value)">
+                <!-- Populated by JS -->
+            </select>
+            
+            <div class="stat-row"><span>Manpower:</span> <span id="player-manpower" style="color: #fff">0</span></div>
+            <div class="stat-row"><span>Industry:</span> <span id="player-industry" style="color: #fff">0</span></div>
+            <div class="stat-row"><span>Territory:</span> <span id="player-provinces" style="color: #fff">0</span></div>
         </div>
 
+        <!-- Province Actions -->
         <div class="panel" id="province-panel" style="display: none;">
-            <div class="panel-header">Selected Province</div>
-            <div class="stat-row"><span>Name:</span> <span id="prov-name">-</span></div>
-            <div class="stat-row"><span>Owner:</span> <span id="prov-owner">-</span></div>
-            <div class="stat-row"><span>Army:</span> <span id="prov-army">0</span></div>
-            <div class="stat-row"><span>Defense:</span> <span id="prov-defense">0%</span></div>
-            <hr style="border-color: #333; margin: 10px 0;">
-            <button class="btn" id="btn-recruit" onclick="game.actions.recruit()">Recruit Army (100 MP)</button>
-            <button class="btn" id="btn-factory" onclick="game.actions.build('factory')">Build Factory (500 MP)</button>
-            <button class="btn" id="btn-fort" onclick="game.actions.build('fort')">Build Fort (300 MP)</button>
-            <button class="btn" id="btn-attack" onclick="game.actions.attackMode()" style="background: #522; border-color: #f44;">Attack Neighbor</button>
+            <div class="panel-header">
+                <span>Sector Ops</span>
+                <span id="prov-id" style="font-size: 0.7em; color: #666;">#000</span>
+            </div>
+            
+            <div style="margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <div style="font-size: 1.1em; font-weight: bold; color: #fff; margin-bottom: 5px;" id="prov-name">Province Name</div>
+                <div class="stat-row"><span>Owner:</span> <span id="prov-owner">-</span></div>
+                <div class="stat-row"><span>Garrison:</span> <span id="prov-army" style="color: #aaa;">0</span></div>
+                <div class="stat-row"><span>Fortification:</span> <span id="prov-defense" style="color: #aaa;">0%</span></div>
+            </div>
+
+            <div id="owner-actions">
+                <button class="btn" id="btn-recruit" onclick="game.actions.recruit()">
+                    <span style="float:left">Recruit Army</span>
+                    <span style="float:right; color: #888;">100 MP</span>
+                </button>
+                <button class="btn" id="btn-factory" onclick="game.actions.build('factory')">
+                    <span style="float:left">Build Factory</span>
+                    <span style="float:right; color: #888;">500 MP</span>
+                </button>
+                <button class="btn" id="btn-fort" onclick="game.actions.build('fort')">
+                    <span style="float:left">Build Fort</span>
+                    <span style="float:right; color: #888;">300 MP</span>
+                </button>
+                <button class="btn btn-danger" id="btn-attack" onclick="game.actions.attackMode()">
+                    ⚔ LAUNCH ASSAULT
+                </button>
+            </div>
+            
+            <div id="admin-actions" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                <button class="btn" style="background: #442222; border-color: #663333;" onclick="game.actions.cheatAnnex()">
+                    ⚠ FORCE ANNEX (CHEAT)
+                </button>
+            </div>
         </div>
 
+        <!-- Game State -->
         <div class="panel">
-            <div class="panel-header">Game Control</div>
-            <button class="btn" onclick="game.togglePause()" id="btn-pause">Pause / Play</button>
-            <div style="text-align: center; margin-top: 5px; font-size: 0.8em; color: #666;">Day: <span id="game-day">1</span></div>
+            <div class="panel-header">Timeline</div>
+            <button class="btn" onclick="game.togglePause()" id="btn-pause">PAUSE SIMULATION</button>
+            <div style="text-align: center; margin-top: 5px; font-size: 0.9em; color: #888;">
+                Day <span id="game-day" style="color: #fff; font-weight: bold;">1</span>
+            </div>
         </div>
 
-        <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <div class="panel-header">Intelligence Log</div>
+        <!-- Log -->
+        <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+            <div class="panel-header">Intel Feed</div>
             <div id="log-panel"></div>
         </div>
         
-        <button class="btn" onclick="window.location.href='index.html'">Exit to Menu</button>
+        <button class="btn" onclick="window.location.href='index.html'">ABORT TO MENU</button>
     </div>
 </div>
 
 <div id="overlay">
-    <h1 id="overlay-title">GAME OVER</h1>
-    <p id="overlay-msg" style="margin-bottom: 20px;">The world has been conquered.</p>
-    <button class="btn" style="width: 200px;" onclick="location.reload()">Restart Campaign</button>
+    <h1 id="overlay-title">CAMPAIGN ENDED</h1>
+    <p id="overlay-msg" style="margin-bottom: 20px; font-size: 1.2em;">The world has been unified.</p>
+    <button class="btn" style="width: 200px; padding: 15px;" onclick="location.reload()">RESTART WORLD</button>
 </div>
 
 <script>
 /**
- * IRON DOMINION - Lightweight Strategy Prototype
- * 
- * Core Data Structures & Game Logic
+ * IRON DOMINION - World Strategy Engine
  */
 
-// --- CONFIGURATION ---
 const CONFIG = {
-    mapWidth: 1200,
-    mapHeight: 800,
-    provinceCount: 120,
-    hexSize: 35,
-    tickRate: 1000, // ms per day
+    hexSize: 18, // Smaller hexes for more detail
+    tickRate: 800,
     colors: {
-        water: '#0a1a2a',
+        water: '#080808',
         neutral: '#2a2a2a',
-        player: '#3b82f6', // Blue
-        enemy1: '#ef4444', // Red
-        enemy2: '#eab308', // Yellow
-        enemy3: '#22c55e', // Green
-        highlight: 'rgba(255, 255, 255, 0.2)',
-        selected: 'rgba(255, 215, 0, 0.4)'
+        highlight: 'rgba(255, 255, 255, 0.15)',
+        selected: 'rgba(255, 215, 0, 0.5)',
+        border: '#000'
     }
 };
 
-// --- DATA STRUCTURES ---
+// --- WORLD DATA ---
 
-const world_map = {
-    width: CONFIG.mapWidth,
-    height: CONFIG.mapHeight,
-    continents: [],
-    waterLevel: 0.3 // 30% of map is water
-};
+// ASCII Map Representation (Approximate World)
+// # = Land, . = Water
+// This map is stretched to fit the hex grid logic
+const ASCII_WORLD = [
+    "................................................................",
+    "................................................................",
+    ".......#####....................................................", // Alaska
+    ".....#########..................................................",
+    "....###########.................................................", // Canada
+    "....###########.......................#########.................", // Greenland / N. Europe
+    "....###########......................###########................",
+    ".....#########.......................###########...###########..", // US / Europe / Russia
+    "......#######.........................#########...#############.",
+    ".......#####...........................#######....#############.",
+    "........###.............................#####......###########..", // Mexico / N. Africa / China
+    ".........#..............................#####.......#########...",
+    ".......................................#######.......#######....", // Africa / India
+    ".........###...........................#######........#####.....", // S. America
+    "........#####...........................#####..........###......",
+    "........#####...........................#####...................", // Indonesia
+    ".........###.............................###............###.....",
+    "..........#...............................#............#####....", // Australia
+    ".......................................................#####....",
+    "........................................................###.....",
+    "................................................................"
+];
 
 const countries = {
-    "PLAYER": { 
-        id: "PLAYER", name: "Iron Legion", color: CONFIG.colors.player, 
-        manpower: 1000, industry: 5, ai: false 
-    },
-    "NEUTRAL": { 
-        id: "NEUTRAL", name: "Independent States", color: CONFIG.colors.neutral, 
-        manpower: 0, industry: 0, ai: false 
-    },
-    "RED_EMPIRE": { 
-        id: "RED_EMPIRE", name: "Crimson Pact", color: CONFIG.colors.enemy1, 
-        manpower: 1000, industry: 5, ai: true, aggression: 0.8 
-    },
-    "GOLD_UNION": { 
-        id: "GOLD_UNION", name: "Aurum Federation", color: CONFIG.colors.enemy2, 
-        manpower: 1000, industry: 5, ai: true, aggression: 0.5 
-    },
-    "GREEN_REPUBLIC": { 
-        id: "GREEN_REPUBLIC", name: "Verdia Republic", color: CONFIG.colors.enemy3, 
-        manpower: 1000, industry: 5, ai: true, aggression: 0.3 
-    }
+    "USA": { id: "USA", name: "United Republic", color: "#3b82f6", manpower: 2000, industry: 10, ai: false },
+    "EU": { id: "EU", name: "European Fed.", color: "#8b5cf6", manpower: 1500, industry: 8, ai: true, aggression: 0.4 },
+    "RUS": { id: "RUS", name: "Eurasian Pact", color: "#ef4444", manpower: 2500, industry: 6, ai: true, aggression: 0.8 },
+    "CHN": { id: "CHN", name: "Dragon Alliance", color: "#eab308", manpower: 3000, industry: 9, ai: true, aggression: 0.6 },
+    "AFR": { id: "AFR", name: "African Union", color: "#22c55e", manpower: 1000, industry: 4, ai: true, aggression: 0.3 },
+    "SAM": { id: "SAM", name: "Libertad Coalition", color: "#f97316", manpower: 1000, industry: 4, ai: true, aggression: 0.4 },
+    "AUS": { id: "AUS", name: "Pacific Defense", color: "#06b6d4", manpower: 800, industry: 5, ai: true, aggression: 0.2 },
+    "NEUTRAL": { id: "NEUTRAL", name: "Independent", color: "#333333", manpower: 0, industry: 0, ai: false }
 };
 
-let provinces = []; // Array of Province objects
+let provinces = [];
+let game = null;
 
-const game_rules = {
-    manpowerPerTurn: 10, // Base
-    manpowerPerFactory: 5,
-    recruitCost: 100,
-    recruitAmount: 50, // Soldiers per recruit action
-    factoryCost: 500,
-    fortCost: 300,
-    baseDefense: 10, // %
-    fortDefense: 20, // %
-    combatRandomness: 0.2 // +/- 20% strength variance
-};
-
-// --- GENERATION LOGIC ---
+// --- GENERATION ---
 
 class Province {
-    constructor(id, q, r) {
+    constructor(id, q, r, region) {
         this.id = id;
-        this.q = q; // Axial coordinates for hex
+        this.q = q;
         this.r = r;
+        this.region = region; // "NA", "SA", "EU", "AF", "AS", "OC"
         this.name = `Sector ${id}`;
         this.owner = "NEUTRAL";
         this.army = 0;
         this.buildings = { factory: 0, fort: 0 };
-        this.isWater = false;
-        this.neighbors = []; // IDs of neighbors
+        this.neighbors = [];
         
-        // Calculate pixel center
-        const x = CONFIG.hexSize * (3/2 * q);
-        const y = CONFIG.hexSize * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
-        this.center = { x: x + CONFIG.mapWidth/2, y: y + CONFIG.mapHeight/2 };
+        // Calculate pixel center (Pointy topped hexes)
+        // x = size * (sqrt(3) * q + sqrt(3)/2 * r)
+        // y = size * (3/2 * r)
+        const size = CONFIG.hexSize;
+        this.center = {
+            x: size * (Math.sqrt(3) * q + Math.sqrt(3)/2 * r) + 50, // Offset
+            y: size * (3/2 * r) + 50
+        };
         
-        // Randomized polygon points for "organic" look
         this.points = this.generateHexPoints();
     }
 
     generateHexPoints() {
         const points = [];
         for (let i = 0; i < 6; i++) {
-            const angle_deg = 60 * i;
+            const angle_deg = 60 * i - 30;
             const angle_rad = Math.PI / 180 * angle_deg;
-            // Add some jitter for organic look
-            const jitter = 5; 
-            const jx = (Math.random() - 0.5) * jitter;
-            const jy = (Math.random() - 0.5) * jitter;
             points.push({
-                x: this.center.x + CONFIG.hexSize * Math.cos(angle_rad) + jx,
-                y: this.center.y + CONFIG.hexSize * Math.sin(angle_rad) + jy
+                x: this.center.x + CONFIG.hexSize * Math.cos(angle_rad),
+                y: this.center.y + CONFIG.hexSize * Math.sin(angle_rad)
             });
         }
         return points;
     }
 }
 
-function generateMap() {
+function generateWorldMap() {
     provinces = [];
-    const mapRadius = 8; // Hex grid radius
     let idCounter = 0;
+    
+    // Parse ASCII Map
+    const rows = ASCII_WORLD.length;
+    const cols = ASCII_WORLD[0].length;
+    
+    for (let r = 0; r < rows; r++) {
+        for (let q = 0; q < cols; q++) {
+            const char = ASCII_WORLD[r][q];
+            if (char === '#') {
+                // Determine Region based on rough coordinates
+                let region = "NEUTRAL";
+                // Simple bounding boxes for regions
+                if (q < 20 && r < 10) region = "NA";
+                else if (q < 20 && r >= 10) region = "SA";
+                else if (q >= 20 && q < 35 && r < 8) region = "EU";
+                else if (q >= 20 && q < 35 && r >= 8) region = "AF";
+                else if (q >= 35 && r < 12) region = "AS";
+                else if (q >= 35 && r >= 12) region = "OC";
 
-    // 1. Generate Hex Grid
-    for (let q = -mapRadius; q <= mapRadius; q++) {
-        let r1 = Math.max(-mapRadius, -q - mapRadius);
-        let r2 = Math.min(mapRadius, -q + mapRadius);
-        for (let r = r1; r <= r2; r++) {
-            provinces.push(new Province(idCounter++, q, r));
+                // Adjust coordinate system to offset rows
+                // In axial, q shifts left as r increases
+                const axialQ = q - Math.floor(r/2);
+                
+                const p = new Province(idCounter++, axialQ, r, region);
+                
+                // Assign initial owners based on region
+                if (region === "NA") p.owner = "USA";
+                else if (region === "SA") p.owner = "SAM";
+                else if (region === "EU") p.owner = "EU";
+                else if (region === "AF") p.owner = "AFR";
+                else if (region === "AS") {
+                    // Split Asia
+                    if (r < 6) p.owner = "RUS";
+                    else p.owner = "CHN";
+                }
+                else if (region === "OC") p.owner = "AUS";
+                
+                // Randomize neutral pockets
+                if (Math.random() < 0.15) p.owner = "NEUTRAL";
+
+                // Initial Army
+                if (p.owner !== "NEUTRAL") {
+                    p.army = 50 + Math.floor(Math.random() * 100);
+                    if (Math.random() < 0.3) p.buildings.factory = 1;
+                } else {
+                    p.army = 10 + Math.floor(Math.random() * 20);
+                }
+
+                // Name generation
+                p.name = generateCityName(region);
+
+                provinces.push(p);
+            }
         }
     }
 
-    // 2. Calculate Neighbors
+    // Calculate Neighbors
     provinces.forEach(p => {
         const directions = [
             {q: 1, r: 0}, {q: 1, r: -1}, {q: 0, r: -1},
@@ -338,135 +434,35 @@ function generateMap() {
             if (neighbor) p.neighbors.push(neighbor.id);
         });
     });
-
-    // 3. Generate Terrain (Simplex-ish noise via random walks or distance from center)
-    // Simple approach: Edges are water
-    provinces.forEach(p => {
-        const dist = (Math.abs(p.q) + Math.abs(p.q + p.r) + Math.abs(p.r)) / 2;
-        if (dist > mapRadius - 2 || Math.random() < 0.1) {
-            p.isWater = true;
-            p.owner = null; // Water has no owner
-        }
-    });
-
-    // 4. Assign Starting Positions
-    // Find land provinces
-    const landProvinces = provinces.filter(p => !p.isWater);
-    
-    // Helper to assign a cluster
-    function assignCluster(ownerId, count) {
-        if (landProvinces.length === 0) return;
-        // Pick random start
-        let startIdx = Math.floor(Math.random() * landProvinces.length);
-        let startProv = landProvinces[startIdx];
-        
-        // BFS to find neighbors
-        let queue = [startProv];
-        let assigned = 0;
-        let visited = new Set();
-        
-        while (queue.length > 0 && assigned < count) {
-            let current = queue.shift();
-            if (visited.has(current.id)) continue;
-            visited.add(current.id);
-            
-            if (current.owner === "NEUTRAL") {
-                current.owner = ownerId;
-                current.army = 200; // Starting army
-                current.buildings.factory = 1;
-                assigned++;
-                
-                // Add neighbors to queue
-                current.neighbors.forEach(nid => {
-                    let n = provinces.find(p => p.id === nid);
-                    if (n && !n.isWater) queue.push(n);
-                });
-            }
-        }
-    }
-
-    // Assign Player and AI
-    assignCluster("PLAYER", 3);
-    assignCluster("RED_EMPIRE", 3);
-    assignCluster("GOLD_UNION", 3);
-    assignCluster("GREEN_REPUBLIC", 3);
-
-    // Neutral garrisons
-    landProvinces.forEach(p => {
-        if (p.owner === "NEUTRAL") {
-            p.army = Math.floor(Math.random() * 50) + 10; // Weak militia
-        }
-    });
 }
 
-// --- AI BEHAVIOR ---
-
-const ai_behavior = {
-    processTurn: function(countryId) {
-        const country = countries[countryId];
-        if (!country.ai) return;
-
-        // 1. Get owned provinces
-        const myProvinces = provinces.filter(p => p.owner === countryId);
-        if (myProvinces.length === 0) return; // Eliminated
-
-        // 2. Resource Management
-        // Build factories if manpower is low but industry is high? No, build factories if we have excess manpower to scale?
-        // Simple logic: If manpower > 500, recruit. If manpower > 1000, build factory.
-        
-        // Recruit logic
-        myProvinces.forEach(p => {
-            // Fortify borders
-            const isBorder = p.neighbors.some(nid => {
-                const n = provinces.find(prov => prov.id === nid);
-                return n && !n.isWater && n.owner !== countryId;
-            });
-
-            if (isBorder && country.manpower >= game_rules.recruitCost) {
-                // Recruit
-                country.manpower -= game_rules.recruitCost;
-                p.army += game_rules.recruitAmount;
-            }
-        });
-
-        // 3. Expansion Logic
-        myProvinces.forEach(p => {
-            if (p.army > 100) { // If we have a decent force
-                // Look for weak neighbors
-                let target = null;
-                let bestScore = -999;
-
-                p.neighbors.forEach(nid => {
-                    const n = provinces.find(prov => prov.id === nid);
-                    if (!n || n.isWater || n.owner === countryId) return;
-
-                    // Score target
-                    let score = 0;
-                    if (n.owner === "NEUTRAL") score += 50; // Prefer neutral
-                    else score += 10 * country.aggression; // Aggression factor against players/AI
-                    
-                    // Weakness check
-                    if (p.army > n.army * 1.2) score += 30; // We are stronger
-                    else score -= 50; // Too risky
-
-                    if (score > bestScore) {
-                        bestScore = score;
-                        target = n;
-                    }
-                });
-
-                // Attack if score is good
-                if (target && bestScore > 0) {
-                    game.resolveCombat(p, target);
-                }
-            }
-        });
-    }
-};
+function generateCityName(region) {
+    const prefixes = {
+        "NA": ["New", "Fort", "San", "Saint", "Port"],
+        "EU": ["Nov", "Alt", "Burg", "Grad", "Ville"],
+        "AS": ["Xin", "Dai", "Tash", "Kha", "Yen"],
+        "AF": ["El", "Ben", "Dar", "Mombasa", "Cape"],
+        "SA": ["Rio", "Santa", "Villa", "Puerto", "San"],
+        "OC": ["Port", "New", "Alice", "Darwin", "Gold"]
+    };
+    const suffixes = {
+        "NA": ["york", "ton", "land", "city", "field"],
+        "EU": ["grad", "burg", "furt", "don", "ris"],
+        "AS": ["jing", "hai", "tok", "bad", "pur"],
+        "AF": ["ro", "town", "shasa", "bi", "la"],
+        "SA": ["paulo", "res", "go", "video", "ma"],
+        "OC": ["ney", "bourne", "th", "bane", "ide"]
+    };
+    
+    const p = prefixes[region] || ["City"];
+    const s = suffixes[region] || ["ville"];
+    
+    return p[Math.floor(Math.random()*p.length)] + " " + s[Math.floor(Math.random()*s.length)];
+}
 
 // --- GAME ENGINE ---
 
-const game = {
+game = {
     canvas: null,
     ctx: null,
     day: 1,
@@ -474,31 +470,368 @@ const game = {
     selectedProvId: null,
     attackMode: false,
     timer: null,
+    playerCountry: "USA", // Default
 
     init: function() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         
         // Resize canvas
-        this.canvas.width = document.getElementById('map-area').clientWidth;
-        this.canvas.height = document.getElementById('map-area').clientHeight;
+        const mapArea = document.getElementById('map-area');
+        this.canvas.width = mapArea.clientWidth;
+        this.canvas.height = mapArea.clientHeight;
         
-        // Center map offset
-        CONFIG.mapWidth = this.canvas.width;
-        CONFIG.mapHeight = this.canvas.height;
-
-        generateMap();
+        generateWorldMap();
+        this.initUI();
         this.render();
-        this.updateUI();
         
         // Event Listeners
         this.canvas.addEventListener('mousedown', this.handleInput.bind(this));
         this.canvas.addEventListener('mousemove', this.handleHover.bind(this));
+        window.addEventListener('resize', () => {
+            this.canvas.width = mapArea.clientWidth;
+            this.canvas.height = mapArea.clientHeight;
+            this.render();
+        });
         
         // Start Loop
         this.timer = setInterval(() => this.tick(), CONFIG.tickRate);
-        this.log("Welcome to Iron Dominion. Command your nation.", "info");
+        this.log("Global Command Interface Initialized.", "info");
     },
+
+    initUI: function() {
+        const selector = document.getElementById('country-selector');
+        Object.values(countries).forEach(c => {
+            if (c.id === "NEUTRAL") return;
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.innerText = c.name;
+            if (c.id === this.playerCountry) opt.selected = true;
+            selector.appendChild(opt);
+        });
+        this.updateUI();
+    },
+
+    switchPlayer: function(countryId) {
+        this.playerCountry = countryId;
+        this.selectedProvId = null;
+        this.attackMode = false;
+        this.log(`Command switched to ${countries[countryId].name}`, "info");
+        this.updateUI();
+        this.render();
+    },
+
+    tick: function() {
+        if (this.paused) return;
+        this.day++;
+        document.getElementById('game-day').innerText = this.day;
+
+        // Economy & AI
+        Object.values(countries).forEach(c => {
+            if (c.id === "NEUTRAL") return;
+            
+            // Income
+            const myProvs = provinces.filter(p => p.owner === c.id);
+            if (myProvs.length === 0) return; // Dead
+
+            let income = 10 + (myProvs.length * 2);
+            const factories = myProvs.reduce((sum, p) => sum + p.buildings.factory, 0);
+            income += factories * 5;
+            
+            c.manpower += income;
+            c.industry = factories;
+
+            // AI Logic
+            if (c.ai && c.id !== this.playerCountry) {
+                this.processAI(c, myProvs);
+            }
+        });
+
+        this.updateUI();
+        this.render();
+    },
+
+    processAI: function(country, myProvs) {
+        // Simple AI
+        // 1. Recruit if rich
+        if (country.manpower > 500) {
+            const borderProv = myProvs.find(p => p.neighbors.some(n => provinces.find(pr=>pr.id===n).owner !== country.id));
+            if (borderProv) {
+                country.manpower -= 100;
+                borderProv.army += 50;
+            }
+        }
+
+        // 2. Attack
+        myProvs.forEach(p => {
+            if (p.army > 150) {
+                // Find weak neighbor
+                const targets = p.neighbors.map(nid => provinces.find(pr => pr.id === nid));
+                const weakTarget = targets.find(t => t.owner !== country.id && t.army < p.army * 0.6);
+                
+                if (weakTarget) {
+                    // Attack!
+                    this.resolveCombat(p, weakTarget);
+                }
+            }
+        });
+    },
+
+    togglePause: function() {
+        this.paused = !this.paused;
+        document.getElementById('btn-pause').innerText = this.paused ? "RESUME SIMULATION" : "PAUSE SIMULATION";
+    },
+
+    handleInput: function(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        let clicked = null;
+        let minDst = Infinity;
+        
+        provinces.forEach(p => {
+            const dst = Math.hypot(p.center.x - x, p.center.y - y);
+            if (dst < CONFIG.hexSize && dst < minDst) {
+                minDst = dst;
+                clicked = p;
+            }
+        });
+
+        if (clicked) {
+            if (this.attackMode && this.selectedProvId !== null) {
+                const source = provinces.find(p => p.id === this.selectedProvId);
+                if (source.neighbors.includes(clicked.id)) {
+                    this.resolveCombat(source, clicked);
+                    this.attackMode = false;
+                    document.getElementById('map-area').style.cursor = 'default';
+                } else {
+                    this.log("Target out of range!", "info");
+                }
+            } else {
+                this.selectedProvId = clicked.id;
+                this.attackMode = false;
+                document.getElementById('map-area').style.cursor = 'default';
+            }
+            this.updateUI();
+            this.render();
+        } else {
+            this.selectedProvId = null;
+            this.attackMode = false;
+            this.updateUI();
+            this.render();
+        }
+    },
+
+    handleHover: function(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const tooltip = document.getElementById('tooltip');
+
+        let hovered = null;
+        let minDst = Infinity;
+        
+        provinces.forEach(p => {
+            const dst = Math.hypot(p.center.x - x, p.center.y - y);
+            if (dst < CONFIG.hexSize && dst < minDst) {
+                minDst = dst;
+                hovered = p;
+            }
+        });
+
+        if (hovered) {
+            tooltip.style.display = 'block';
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            tooltip.style.top = (e.clientY + 15) + 'px';
+            tooltip.innerHTML = `
+                <strong style="color:#fff">${hovered.name}</strong><br>
+                <span style="color:${countries[hovered.owner].color}">${countries[hovered.owner].name}</span><br>
+                Army: ${Math.floor(hovered.army)}
+            `;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    },
+
+    actions: {
+        recruit: function() {
+            if (!game.selectedProvId) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const c = countries[game.playerCountry];
+            
+            if (p.owner !== game.playerCountry) return;
+            
+            if (c.manpower >= 100) {
+                c.manpower -= 100;
+                p.army += 50;
+                game.updateUI();
+                game.render();
+                game.log(`Reinforcements arrived in ${p.name}`, "info");
+            }
+        },
+        build: function(type) {
+            if (!game.selectedProvId) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const c = countries[game.playerCountry];
+            
+            if (p.owner !== game.playerCountry) return;
+
+            const cost = type === 'factory' ? 500 : 300;
+            if (c.manpower >= cost) {
+                c.manpower -= cost;
+                p.buildings[type]++;
+                game.updateUI();
+                game.render();
+                game.log(`Construction complete in ${p.name}`, "info");
+            }
+        },
+        attackMode: function() {
+            if (!game.selectedProvId) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            if (p.owner !== game.playerCountry) return;
+            
+            game.attackMode = true;
+            document.getElementById('map-area').style.cursor = 'crosshair';
+            game.log("Select target province...", "info");
+        },
+        cheatAnnex: function() {
+            if (!game.selectedProvId) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            
+            if (p.owner === game.playerCountry) return;
+            
+            const oldOwner = p.owner;
+            p.owner = game.playerCountry;
+            p.army = 100;
+            game.log(`CHEAT: Annexed ${p.name} from ${countries[oldOwner].name}`, "war");
+            game.updateUI();
+            game.render();
+        }
+    },
+
+    resolveCombat: function(attackerProv, defenderProv) {
+        if (attackerProv.army < 20) return;
+
+        const attackForce = Math.floor(attackerProv.army * 0.8);
+        attackerProv.army -= attackForce;
+
+        let defenseMult = 1.0 + (defenderProv.buildings.fort * 0.2);
+        const defenseForce = defenderProv.army * defenseMult;
+
+        const attackRoll = attackForce * (0.8 + Math.random() * 0.4);
+        const defenseRoll = defenseForce * (0.8 + Math.random() * 0.4);
+
+        if (attackRoll > defenseRoll) {
+            // Win
+            const remaining = Math.floor(attackForce * 0.6);
+            defenderProv.owner = attackerProv.owner;
+            defenderProv.army = remaining;
+            defenderProv.buildings.fort = 0;
+            this.log(`${countries[attackerProv.owner].name} seized ${defenderProv.name}`, "war");
+        } else {
+            // Lose
+            const remaining = Math.floor(defenderProv.army * 0.7);
+            defenderProv.army = remaining;
+            this.log(`Assault on ${defenderProv.name} repelled`, "info");
+        }
+        
+        this.render();
+        this.updateUI();
+    },
+
+    log: function(msg, type) {
+        const panel = document.getElementById('log-panel');
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.innerText = `D${this.day}: ${msg}`;
+        panel.prepend(entry);
+    },
+
+    updateUI: function() {
+        const p = countries[this.playerCountry];
+        document.getElementById('player-manpower').innerText = Math.floor(p.manpower);
+        document.getElementById('player-industry').innerText = p.industry;
+        document.getElementById('player-provinces').innerText = provinces.filter(prov => prov.owner === this.playerCountry).length;
+
+        const provPanel = document.getElementById('province-panel');
+        if (this.selectedProvId !== null) {
+            const prov = provinces.find(pr => pr.id === this.selectedProvId);
+            provPanel.style.display = 'block';
+            document.getElementById('prov-id').innerText = `#${prov.id}`;
+            document.getElementById('prov-name').innerText = prov.name;
+            
+            const owner = countries[prov.owner];
+            const ownerEl = document.getElementById('prov-owner');
+            ownerEl.innerText = owner.name;
+            ownerEl.style.color = owner.color;
+            
+            document.getElementById('prov-army').innerText = Math.floor(prov.army);
+            document.getElementById('prov-defense').innerText = (prov.buildings.fort * 20) + "%";
+
+            // Button visibility
+            const isMine = prov.owner === this.playerCountry;
+            document.getElementById('owner-actions').style.display = isMine ? 'block' : 'none';
+            document.getElementById('admin-actions').style.display = !isMine ? 'block' : 'none';
+            
+        } else {
+            provPanel.style.display = 'none';
+        }
+    },
+
+    render: function() {
+        const ctx = this.ctx;
+        ctx.fillStyle = CONFIG.colors.water;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Center the map
+        // Calculate bounds
+        // Just use fixed offset for now
+        
+        provinces.forEach(p => {
+            ctx.beginPath();
+            const pts = p.points;
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+                ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            ctx.closePath();
+
+            // Fill
+            if (p.id === this.selectedProvId) {
+                ctx.fillStyle = CONFIG.colors.selected;
+            } else {
+                ctx.fillStyle = countries[p.owner].color;
+            }
+            ctx.fill();
+
+            // Stroke
+            ctx.strokeStyle = CONFIG.colors.border;
+            ctx.lineWidth = 1;
+            if (p.id === this.selectedProvId) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+            }
+            ctx.stroke();
+
+            // Icons
+            if (p.buildings.factory > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '10px Arial';
+                ctx.fillText("⚙", p.center.x - 5, p.center.y);
+            }
+            if (p.buildings.fort > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '10px Arial';
+                ctx.fillText("♜", p.center.x + 5, p.center.y);
+            }
+        });
+    }
+};
+
+window.onload = function() {
+    game.init();
+};    },
 
     tick: function() {
         if (this.paused) return;
