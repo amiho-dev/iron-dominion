@@ -1,0 +1,167 @@
+{
+  "info": {
+    "_postman_id": "iron-dominion-auth",
+    "name": "Iron Dominion - Authentication API",
+    "description": "Complete test collection for Iron Dominion authentication system",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"testplayer\",\n  \"email\": \"testplayer@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/php/register.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "register.php"
+          ]
+        },
+        "description": "Create a new user account. Username must be 3-30 chars, email must be valid, password must be 6+ chars."
+      },
+      "response": []
+    },
+    {
+      "name": "Login User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"testplayer\",\n  \"password\": \"SecurePassword123\",\n  \"remember_me\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/php/login.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "login.php"
+          ]
+        },
+        "description": "Authenticate user with username and password. Sets session cookie and optional 30-day remember-me cookies."
+      },
+      "response": []
+    },
+    {
+      "name": "Check Authentication",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/php/check-auth.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "check-auth.php"
+          ]
+        },
+        "description": "Check if user is currently authenticated. Checks both active sessions and remember-me cookies."
+      },
+      "response": []
+    },
+    {
+      "name": "Logout User",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/php/logout.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "logout.php"
+          ]
+        },
+        "description": "Logout current user. Destroys session and clears all auth cookies."
+      },
+      "response": []
+    },
+    {
+      "name": "Login with Wrong Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"testplayer\",\n  \"password\": \"WrongPassword123\",\n  \"remember_me\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/php/login.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "login.php"
+          ]
+        },
+        "description": "Test invalid password. Should return 401 error."
+      },
+      "response": []
+    },
+    {
+      "name": "Register with Duplicate Username",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"testplayer\",\n  \"email\": \"another@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/php/register.php",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "php",
+            "register.php"
+          ]
+        },
+        "description": "Test duplicate username. Should return 409 Conflict error."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ]
+}

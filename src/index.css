@@ -1,0 +1,190 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Roboto Condensed', 'Arial Black', sans-serif;
+  background: #0a0a0a;
+  color: #ffd700;
+}
+
+/* Military-style button base */
+.military-btn {
+  @apply px-8 py-4 font-bold text-lg uppercase tracking-wider;
+  @apply bg-gradient-to-b from-[#4a4a4a] to-[#2a2a2a];
+  @apply border-2 border-[#8b7355] shadow-lg;
+  @apply transition-all duration-300 ease-out;
+  @apply relative overflow-hidden;
+  @apply cursor-pointer font-hoi4;
+  
+  color: #ffd700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 215, 0, 0.3),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(139, 115, 85, 0.2);
+}
+
+.military-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.military-btn:hover {
+  @apply border-[#d4a574] shadow-lg;
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 215, 0, 0.5),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(0, 0, 0, 0.8),
+    0 0 30px rgba(212, 165, 116, 0.5),
+    0 0 60px rgba(255, 215, 0, 0.2);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.6), 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.military-btn:hover::before {
+  left: 100%;
+}
+
+.military-btn:active {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 2px 4px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(255, 215, 0, 0.1);
+}
+
+/* Parallax background */
+.parallax-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.parallax-layer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+/* Screen fills and fades */
+@keyframes screen-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
+}
+
+.screen-flicker {
+  animation: screen-flicker 0.15s infinite;
+}
+
+/* Glow effect for title */
+.title-glow {
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 0.4),
+    0 0 20px rgba(255, 215, 0, 0.3),
+    0 0 40px rgba(212, 165, 116, 0.2),
+    2px 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+/* Warning stripes */
+.warning-stripe {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(255, 215, 0, 0.1) 10px,
+    rgba(255, 215, 0, 0.1) 20px
+  );
+}
+
+/* VHS Effect - Horizontal lines moving from left to right */
+@keyframes vhs-glitch-horizontal {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100vw); }
+}
+
+.vhs-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 15;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 215, 0, 0.04) 2px,
+    rgba(255, 215, 0, 0.04) 4px,
+    transparent 4px,
+    transparent 6px,
+    rgba(139, 115, 85, 0.02) 6px,
+    rgba(139, 115, 85, 0.02) 8px
+  );
+  background-size: 50px 100%;
+  animation: vhs-glitch-horizontal 3s linear infinite;
+  opacity: 0.6;
+}
+
+/* Additional VHS vertical distortion lines */
+@keyframes vhs-vertical-scan {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+.vhs-vertical {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 14;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 1px,
+    rgba(0, 0, 0, 0.05) 1px,
+    rgba(0, 0, 0, 0.05) 2px
+  );
+  background-size: 100% 8px;
+  animation: vhs-vertical-scan 0.15s infinite;
+}
+
+/* Responsive text sizing */
+@media (max-width: 768px) {
+  .military-btn {
+    @apply px-6 py-3 text-base;
+  }
+}
+
+@media (max-width: 480px) {
+  .military-btn {
+    @apply px-4 py-2 text-sm;
+  }
+}

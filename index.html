@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iron Dominion - Grand Strategy Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Ironmonger Black';
+            src: url('/assets/ironmonger-black.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Ironmonger Black', 'Roboto Condensed', 'Arial Black', sans-serif;
+            background: #0a0a0a;
+            color: #ffd700;
+            text-transform: uppercase;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Parallax background with multiple layers */
+        .parallax-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .parallax-layer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .layer-base {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+        }
+
+        .layer-wallpaper {
+            background-image: url('/assets/menu-background.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            opacity: 0.8;
+        }
+
+        .layer-texture {
+            background: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' result='noise' /%3E%3CfeColorMatrix in='noise' type='saturate' values='0.3' /%3E%3C/filter%3E%3Crect width='100' height='100' fill='%23ffd700' filter='url(%23noise)' opacity='0.03' /%3E%3C/svg%3E");
+            background-size: 100px 100px;
+            opacity: 0.4;
+        }
+
+        .layer-scanline {
+            background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.15) 0px, rgba(0, 0, 0, 0.15) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+        }
+
+        /* VHS Horizontal Effect - Lines from left to right only */
+        @keyframes vhs-glitch-horizontal {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100vw); }
+        }
+
+        .layer-vhs {
+            background: repeating-linear-gradient(
+                90deg,
+                transparent 0px,
+                transparent 2px,
+                rgba(255, 215, 0, 0.04) 2px,
+                rgba(255, 215, 0, 0.04) 4px,
+                transparent 4px,
+                transparent 6px,
+                rgba(139, 115, 85, 0.02) 6px,
+                rgba(139, 115, 85, 0.02) 8px
+            );
+            background-size: 50px 100%;
+            animation: vhs-glitch-horizontal 3s linear infinite;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Screen flicker animation */
+        @keyframes screen-flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.98; }
+        }
+
+        .container {
+            animation: screen-flicker 0.15s infinite;
+        }
+
+        /* Main content */
+        .content {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        /* Top decoration bar */
+        .decoration-top {
+            width: 100%;
+            max-width: 900px;
+            height: 4px;
+            background: linear-gradient(to right, transparent, rgba(212, 165, 116, 0.8), transparent);
+            margin-bottom: 2rem;
+            animation: slide-in 0.6s ease-out;
+        }
+
+        /* Game Title */
+        .title-section {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: slide-in 0.6s ease-out;
+        }
+
+        .title-main {
+            font-size: clamp(2rem, 5vw, 4rem);
+            font-weight: 900;
+            letter-spacing: 0.3em;
+            color: #ffd700;
+            font-family: 'Ironmonger Black', 'Arial Black', sans-serif;
+            text-shadow: 
+                0 0 10px rgba(255, 215, 0, 0.6),
+                0 0 20px rgba(255, 215, 0, 0.4),
+                0 0 40px rgba(255, 140, 0, 0.3),
+                0 0 60px rgba(212, 165, 116, 0.2),
+                2px 2px 10px rgba(0, 0, 0, 0.9);
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8));
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        .title-sub {
+            color: #ff9933;
+            font-size: clamp(0.7rem, 1.5vw, 1rem);
+            letter-spacing: 0.2em;
+            margin-top: 0.5rem;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            text-shadow: 0 0 5px rgba(255, 153, 51, 0.3);
+        }
+
+        /* Subtitle */
+        .subtitle {
+            width: 100%;
+            max-width: 700px;
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem 2rem;
+            border-left: 4px solid rgba(139, 115, 85, 0.6);
+            border-right: 4px solid rgba(139, 115, 85, 0.6);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .subtitle-text {
+            color: #ffb84d;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-style: italic;
+            text-shadow: 0 0 5px rgba(255, 184, 77, 0.2);
+        }
+
+        /* Separator */
+        .separator {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .separator-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(139, 115, 85, 0.5), transparent);
+        }
+
+        .separator-dot {
+            width: 8px;
+            height: 8px;
+            background: #8b7355;
+            opacity: 0.7;
+        }
+
+        /* Buttons container */
+        .buttons-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: 450px;
+            margin-bottom: 2rem;
+        }
+
+        /* Modern Military Button */
+        .military-btn {
+            padding: 1rem 2.5rem;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 153, 51, 0.3);
+            border-radius: 4px;
+            color: #ffd700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            font-family: 'Ironmonger Black', 'Roboto Condensed', 'Arial Black', sans-serif;
+            box-shadow: 
+                0 4px 6px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .military-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .military-btn:hover {
+            background: rgba(30, 30, 30, 0.9);
+            border-color: #ffb84d;
+            transform: translateY(-2px);
+            box-shadow: 
+                0 8px 15px rgba(0, 0, 0, 0.4),
+                0 0 20px rgba(255, 153, 51, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+
+        .military-btn:hover::before {
+            transform: translateX(100%);
+        }
+
+        .military-btn:active {
+            transform: translateY(0);
+            box-shadow: 
+                0 2px 4px rgba(0, 0, 0, 0.4),
+                inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Animations */
+        @keyframes slide-in {
+            0% {
+                transform: translateX(-30px);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 
+                    inset 0 1px 0 rgba(255, 215, 0, 0.5),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                    0 8px 16px rgba(0, 0, 0, 0.8),
+                    0 0 30px rgba(212, 165, 116, 0.5),
+                    0 0 60px rgba(255, 215, 0, 0.2);
+            }
+            50% {
+                box-shadow: 
+                    inset 0 1px 0 rgba(255, 215, 0, 0.3),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                    0 4px 8px rgba(0, 0, 0, 0.6),
+                    0 0 20px rgba(212, 165, 116, 0.3),
+                    0 0 40px rgba(255, 215, 0, 0.1);
+            }
+        }
+
+        /* Bottom control bar */
+        .control-bar {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            right: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: #8b7355;
+            z-index: 20;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .control-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #8b7355;
+            background: transparent;
+            color: #8b7355;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', 'Roboto Condensed', sans-serif;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+        }
+
+        .control-btn:hover {
+            border-color: #ffd700;
+            color: #ffd700;
+        }
+
+        .version-info {
+            text-align: center;
+            flex: 1;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+        }
+
+        .status {
+            text-align: right;
+            color: #cc9900;
+        }
+
+        /* Version badge in bottom left */
+        .version-badge {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            color: #8b7355;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            z-index: 20;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .version-badge:hover {
+            opacity: 1;
+        }
+
+        /* Music control in bottom right */
+        .music-control {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 20;
+        }
+
+        .music-icon-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .music-icon-btn:hover {
+            opacity: 1;
+        }
+
+        .music-status {
+            color: #ff9933;
+            font-family: 'Ironmonger Black', 'Courier New', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .music-control:hover .music-status {
+            opacity: 1;
+        }
+
+        /* Corner decorations */
+        .corner {
+            position: fixed;
+            width: 1.5rem;
+            height: 1.5rem;
+            border-color: #8b7355;
+            opacity: 0.5;
+            z-index: 20;
+        }
+
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border: 3px solid #ff9933;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(255, 153, 51, 0.4);
+            animation: modal-pop 0.3s ease-out;
+        }
+
+        @keyframes modal-pop {
+            0% {
+                transform: scale(0.8) translateY(-20px);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 2rem;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+            margin-bottom: 1.5rem;
+            text-align: center;
+            border-bottom: 2px solid #ff9933;
+            padding-bottom: 1rem;
+        }
+
+        .modal-body {
+            color: #ffb84d;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .settings-option {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #ff9933;
+            background: rgba(255, 153, 51, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 4px;
+        }
+
+        .settings-label {
+            color: #ffb84d;
+            font-size: 1rem;
+        }
+
+        .settings-control {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .toggle-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ff9933;
+            background: #333;
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            background: #ff9933;
+            color: #000;
+        }
+
+        .toggle-btn.active {
+            background: #ffd700;
+            color: #000;
+            border-color: #ffd700;
+        }
+
+        .modal-footer {
+            text-align: center;
+        }
+
+        .close-btn {
+            padding: 0.75rem 2rem;
+            border: 2px solid #ff9933;
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 20px rgba(255, 153, 51, 0.4);
+        }
+
+        .corner-tl {
+            top: 0.5rem;
+            left: 0.5rem;
+            border-left: 2px solid;
+            border-top: 2px solid;
+        }
+
+        .corner-tr {
+            top: 0.5rem;
+            right: 0.5rem;
+            border-right: 2px solid;
+            border-top: 2px solid;
+        }
+
+        .corner-bl {
+            bottom: 0.5rem;
+            left: 0.5rem;
+            border-left: 2px solid;
+            border-bottom: 2px solid;
+        }
+
+        .corner-br {
+            bottom: 0.5rem;
+            right: 0.5rem;
+            border-right: 2px solid;
+            border-bottom: 2px solid;
+        }
+
+        /* Login/Auth Form Styles */
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            color: #ffb84d;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input {
+            padding: 0.75rem;
+            border: 2px solid #ff9933;
+            background: rgba(0, 0, 0, 0.5);
+            color: #ffd700;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input::placeholder {
+            color: #8b7355;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #ffb84d;
+            box-shadow: 0 0 10px rgba(255, 184, 77, 0.3);
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #ffb84d;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            cursor: pointer;
+            width: 1rem;
+            height: 1rem;
+            accent-color: #ff9933;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .form-error {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-top: -0.5rem;
+        }
+
+        .form-success {
+            color: #51cf66;
+            font-size: 0.85rem;
+            margin-top: -0.5rem;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .form-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #ff9933;
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .form-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 15px rgba(255, 153, 51, 0.3);
+        }
+
+        .form-btn:active {
+            transform: scale(0.98);
+        }
+
+        .form-toggle {
+            text-align: center;
+            margin-top: 1rem;
+            color: #ffb84d;
+            font-size: 0.9rem;
+        }
+
+        .form-toggle-link {
+            color: #ffd700;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+        }
+
+        .form-toggle-link:hover {
+            color: #ffb84d;
+        }
+
+        .account-header {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .account-user {
+            color: #ffd700;
+            font-family: 'Ironmonger Black', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .account-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #ff9933;
+            background: transparent;
+            color: #ffd700;
+            cursor: pointer;
+            font-family: 'Ironmonger Black', sans-serif;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .account-btn:hover {
+            border-color: #ffb84d;
+            box-shadow: 0 0 10px rgba(255, 153, 51, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .military-btn {
+                padding: 0.75rem 1.5rem;
+                font-size: 1rem;
+            }
+
+            .title-main {
+                font-size: clamp(2rem, 6vw, 4rem);
+            }
+
+            .account-header {
+                top: auto;
+                bottom: 6rem;
+                right: 1rem;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .military-btn {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.9rem;
+            }
+
+            .title-main {
+                font-size: clamp(1.5rem, 5vw, 3rem);
+            }
+
+            .control-bar {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Parallax background -->
+        <div class="parallax-bg">
+            <div class="parallax-layer layer-base"></div>
+            <div class="parallax-layer layer-wallpaper"></div>
+            <div class="parallax-layer layer-texture" id="textureLayer"></div>
+            <div class="parallax-layer layer-scanline"></div>
+            <div class="parallax-layer layer-vhs"></div>
+        </div>
+
+        <!-- Main content -->
+        <div class="content">
+            <!-- Top decoration -->
+            <div class="decoration-top"></div>
+
+            <!-- Title section -->
+            <div class="title-section">
+                <h1 class="title-main">IRON DOMINION</h1>
+                <p class="title-sub">GRAND STRATEGY • WORLD AT WAR</p>
+            </div>
+
+            <!-- Subtitle -->
+            <div class="subtitle">
+                <p class="subtitle-text">"COMMAND YOUR NATION THROUGH THE CRUCIBLE OF GLOBAL CONFLICT"</p>
+            </div>
+
+            <!-- Version -->
+            <div style="text-align: center; margin-top: 15px; font-size: 0.85rem; color: #b8860b; letter-spacing: 0.05em;">
+                R21
+            </div>
+
+            <!-- Separator -->
+            <div class="separator">
+                <div class="separator-line"></div>
+                <div class="separator-dot"></div>
+                <div class="separator-line"></div>
+            </div>
+
+            <!-- Menu buttons -->
+            <div class="buttons-container">
+                <button class="military-btn" id="loginMenuBtn" onclick="window.location.href='https://my.thatoneamiho.cc/index.html?redirect=' + encodeURIComponent(window.location.href)" style="display: none;">🔐 myTAD</button>
+                <button class="military-btn" onclick="handleBattle()">⚔ BATTLE</button>
+                <button class="military-btn" onclick="handleLoadGame()">📂 LOAD GAME</button>
+                <button class="military-btn" onclick="handleSettings()">⚙ SETTINGS</button>
+            </div>
+
+            <!-- Hidden file input for IDW file upload -->
+            <input type="file" id="idwFileInput" accept=".idw" style="display: none;" onchange="handleIDWFileUpload(event)">
+        </div>
+
+        <!-- Corner decorations -->
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+
+        <!-- Control bar -->
+        <div class="control-bar">
+        </div>
+
+        <!-- Version info in bottom left -->
+        <div class="version-badge">© 2025 TAD</div>
+
+        <!-- Music control in bottom right -->
+        <div class="music-control">
+            <button class="music-icon-btn" id="musicBtn" onclick="toggleMusic()">🔊</button>
+            <span class="music-status" id="musicStatus">MUSIC ON</span>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">SETTINGS</div>
+            <div class="modal-body">
+                <div class="settings-option">
+                    <span class="settings-label">MASTER VOLUME</span>
+                    <div class="settings-control">
+                        <input type="range" min="0" max="100" value="55" id="volumeSlider" onchange="handleVolumeChange(this.value)" style="width: 150px; cursor: pointer;">
+                        <span id="volumeDisplay">55%</span>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">MUSIC</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn" id="musicToggle" onclick="handleMusicToggle()">ON</button>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">EFFECTS</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn active" id="effectsToggle" onclick="handleEffectsToggle()">ON</button>
+                    </div>
+                </div>
+
+                <div class="settings-option">
+                    <span class="settings-label">FULLSCREEN</span>
+                    <div class="settings-control">
+                        <button class="toggle-btn" id="fullscreenToggle" onclick="handleFullscreenToggle()">OFF</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="close-btn" onclick="closeSettings()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Battle Menu Modal -->
+    <div class="modal" id="battleModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">BATTLE COMMAND</div>
+            <div class="modal-body" id="battleMainView">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                    <div style="background: rgba(255, 255, 255, 0.05); padding: 2rem; border: 1px solid rgba(255, 153, 51, 0.2); border-radius: 8px; text-align: center; transition: all 0.3s ease;" onmouseover="this.style.borderColor='#ff9933'; this.style.background='rgba(255, 153, 51, 0.1)'" onmouseout="this.style.borderColor='rgba(255, 153, 51, 0.2)'; this.style.background='rgba(255, 255, 255, 0.05)'">
+                        <h3 style="color: #ffd700; font-size: 1.5rem; margin-bottom: 1rem;">SINGLEPLAYER</h3>
+                        <p style="color: #8b7355; margin-bottom: 1.5rem; font-size: 0.9rem;">Campaigns & Skirmishes against AI</p>
+                        <button class="military-btn" style="width: 100%; font-size: 1rem;" onclick="showBattleMode('single')">DEPLOY</button>
+                    </div>
+                    <div style="background: rgba(255, 255, 255, 0.05); padding: 2rem; border: 1px solid rgba(255, 153, 51, 0.2); border-radius: 8px; text-align: center; transition: all 0.3s ease;" onmouseover="this.style.borderColor='#ff9933'; this.style.background='rgba(255, 153, 51, 0.1)'" onmouseout="this.style.borderColor='rgba(255, 153, 51, 0.2)'; this.style.background='rgba(255, 255, 255, 0.05)'">
+                        <h3 style="color: #ffd700; font-size: 1.5rem; margin-bottom: 1rem;">MULTIPLAYER</h3>
+                        <p style="color: #8b7355; margin-bottom: 1.5rem; font-size: 0.9rem;">Online Warfare & Ranked Matches</p>
+                        <button class="military-btn" style="width: 100%; font-size: 1rem;" onclick="showBattleMode('multi')">CONNECT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Singleplayer View -->
+            <div class="modal-body" id="singleplayerView" style="display: none;">
+                <h3 style="color: #ff9933; margin-bottom: 1.5rem; text-align: center;">SELECT CAMPAIGN</h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem; max-height: 300px; overflow-y: auto; padding-right: 10px;">
+                    <button class="settings-option" style="width: 100%; text-align: left; cursor: pointer;" onclick="startDemoBattle('Tutorial')">
+                        <div>
+                            <div style="color: #ffd700; font-weight: bold;">OPERATION: GENESIS</div>
+                            <div style="font-size: 0.8rem; color: #8b7355;">Tutorial Campaign • Difficulty: Easy</div>
+                        </div>
+                        <span style="color: #51cf66;">READY</span>
+                    </button>
+                    <button class="settings-option" style="width: 100%; text-align: left; cursor: pointer; opacity: 0.7;">
+                        <div>
+                            <div style="color: #ffd700; font-weight: bold;">THE IRON CURTAIN</div>
+                            <div style="font-size: 0.8rem; color: #8b7355;">Historical Scenario • Difficulty: Hard</div>
+                        </div>
+                        <span style="color: #ff6b6b;">LOCKED</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Multiplayer View -->
+            <div class="modal-body" id="multiplayerView" style="display: none;">
+                <h3 style="color: #ff9933; margin-bottom: 1.5rem; text-align: center;">SERVER BROWSER</h3>
+                <div style="background: rgba(0, 0, 0, 0.3); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; color: #8b7355; font-size: 0.8rem; margin-bottom: 0.5rem; padding: 0 0.5rem;">
+                        <span>SERVER NAME</span>
+                        <span>PLAYERS</span>
+                        <span>PING</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div class="settings-option" style="margin: 0; padding: 0.8rem; cursor: pointer;" onclick="joinServer('Official #1')">
+                            <span style="color: #ffd700;">Official Server #1 [EU]</span>
+                            <span style="color: #ccc;">12/64</span>
+                            <span style="color: #51cf66;">24ms</span>
+                        </div>
+                        <div class="settings-option" style="margin: 0; padding: 0.8rem; cursor: pointer;" onclick="joinServer('Official #2')">
+                            <span style="color: #ffd700;">Official Server #2 [US]</span>
+                            <span style="color: #ccc;">45/64</span>
+                            <span style="color: #eebb00;">112ms</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="military-btn" style="width: 100%; font-size: 0.9rem;">REFRESH LIST</button>
+            </div>
+
+            <div class="modal-footer">
+                <button class="close-btn" id="battleBackBtn" onclick="closeBattle()">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Header (Hidden until logged in) -->
+    <div class="account-header" id="accountHeader" style="display: none;">
+        <span class="account-user">Logged in as: <span id="accountUsername" style="color: #ffd700;"></span></span>
+        <button class="account-btn" onclick="window.location.href='https://my.thatoneamiho.cc/index.html?redirect=' + encodeURIComponent(window.location.href)">⚙ myTAD</button>
+    </div>
+
+    <!-- Audio element for background music -->
+    <audio id="bgMusic" loop preload="auto">
+        <source src="/assets/theme-music.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // ========== SIMPLE AUTHENTICATION CHECK ==========
+
+        const API_BASE_URL = '/php';
+
+        // Check authentication status on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuthStatus();
+        });
+
+        // Check if user is authenticated
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/check-auth.php`, {
+                    credentials: 'include',
+                    method: 'GET'
+                });
+                const data = await response.json();
+
+                if (data.authenticated) {
+                    // User is logged in - hide myDominion button
+                    document.getElementById('loginMenuBtn').style.display = 'none';
+                    if (document.getElementById('accountHeader')) {
+                        document.getElementById('accountHeader').style.display = 'flex';
+                        document.getElementById('accountUsername').textContent = data.username;
+                    }
+                } else {
+                    // User is not logged in - show myDominion button
+                    document.getElementById('loginMenuBtn').style.display = 'block';
+                    if (document.getElementById('accountHeader')) {
+                        document.getElementById('accountHeader').style.display = 'none';
+                    }
+                }
+            } catch (err) {
+                console.error('Auth check error:', err);
+                document.getElementById('loginMenuBtn').style.display = 'block';
+            }
+        }
+
+        // Logout function
+        async function logoutUser() {
+            try {
+                await fetch(`${API_BASE_URL}/logout.php`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                location.href = 'myDominion.html';
+            } catch (err) {
+                console.error('Logout error:', err);
+            }
+        }
+
+        // ========== END AUTHENTICATION CHECK ==========
+
+        // Parallax effect on mouse movement (Throttled)
+        let ticking = false;
+        document.addEventListener('mousemove', (e) => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const textureLayer = document.getElementById('textureLayer');
+                    const x = e.clientX;
+                    textureLayer.style.transform = `translateX(${x * 0.02}px)`;
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+
+        // Handle button clicks
+        function handleClick(action) {
+            console.log(`Action: ${action}`);
+            // Add haptic feedback if available
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        // Handle Battle button
+        function handleBattle() {
+            document.getElementById('battleModal').classList.add('active');
+            // Reset to main view
+            document.getElementById('battleMainView').style.display = 'block';
+            document.getElementById('singleplayerView').style.display = 'none';
+            document.getElementById('multiplayerView').style.display = 'none';
+            document.getElementById('battleBackBtn').onclick = closeBattle;
+        }
+
+        function showBattleMode(mode) {
+            document.getElementById('battleMainView').style.display = 'none';
+            const backBtn = document.getElementById('battleBackBtn');
+            
+            if (mode === 'single') {
+                document.getElementById('singleplayerView').style.display = 'block';
+                backBtn.onclick = () => {
+                    document.getElementById('singleplayerView').style.display = 'none';
+                    document.getElementById('battleMainView').style.display = 'block';
+                    backBtn.onclick = closeBattle;
+                };
+            } else if (mode === 'multi') {
+                document.getElementById('multiplayerView').style.display = 'block';
+                backBtn.onclick = () => {
+                    document.getElementById('multiplayerView').style.display = 'none';
+                    document.getElementById('battleMainView').style.display = 'block';
+                    backBtn.onclick = closeBattle;
+                };
+            }
+        }
+
+        function startDemoBattle(campaign) {
+            alert(`Starting demo campaign: ${campaign}\n\nLoading assets...`);
+            // In a real implementation, this would load the game scene
+        }
+
+        function joinServer(serverName) {
+            alert(`Connecting to ${serverName}...\n\nAuthenticating...`);
+            // In a real implementation, this would connect to the game server
+        }
+
+        // Close Battle menu
+        function closeBattle() {
+            document.getElementById('battleModal').classList.remove('active');
+        }
+
+        // Handle Settings button
+        function handleSettings() {
+            const audio = document.getElementById('bgMusic');
+            const musicToggle = document.getElementById('musicToggle');
+            const volumeSlider = document.getElementById('volumeSlider');
+            const volumeDisplay = document.getElementById('volumeDisplay');
+
+            // Update sliders with current values
+            if (!audio.muted) {
+                musicToggle.classList.add('active');
+                musicToggle.textContent = 'ON';
+            } else {
+                musicToggle.classList.remove('active');
+                musicToggle.textContent = 'OFF';
+            }
+
+            volumeSlider.value = Math.round(audio.volume * 100);
+            volumeDisplay.textContent = Math.round(audio.volume * 100) + '%';
+
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        // Close Settings menu
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        // Handle Volume change
+        function handleVolumeChange(value) {
+            const audio = document.getElementById('bgMusic');
+            audio.volume = value / 100;
+            document.getElementById('volumeDisplay').textContent = value + '%';
+        }
+
+        // Handle Music toggle
+        function handleMusicToggle() {
+            const audio = document.getElementById('bgMusic');
+            const btn = document.getElementById('musicToggle');
+            const musicBtn = document.getElementById('musicBtn');
+            const status = document.getElementById('musicStatus');
+            
+            if (audio.muted) {
+                audio.muted = false;
+                btn.classList.add('active');
+                btn.textContent = 'ON';
+                musicBtn.textContent = '🔊';
+                status.textContent = 'MUSIC ON';
+            } else {
+                audio.muted = true;
+                btn.classList.remove('active');
+                btn.textContent = 'OFF';
+                musicBtn.textContent = '🔇';
+                status.textContent = 'MUSIC OFF';
+            }
+        }
+
+        // Handle Effects toggle
+        function handleEffectsToggle() {
+            const btn = document.getElementById('effectsToggle');
+            btn.classList.toggle('active');
+            if (btn.classList.contains('active')) {
+                btn.textContent = 'ON';
+                console.log('Sound effects enabled');
+            } else {
+                btn.textContent = 'OFF';
+                console.log('Sound effects disabled');
+            }
+        }
+
+        // Handle Fullscreen toggle
+        function handleFullscreenToggle() {
+            const btn = document.getElementById('fullscreenToggle');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Fullscreen request failed:', err);
+                });
+                btn.classList.add('active');
+                btn.textContent = 'ON';
+            } else {
+                document.exitFullscreen();
+                btn.classList.remove('active');
+                btn.textContent = 'OFF';
+            }
+        }
+
+        // Handle Load Game - Open file dialog for IDW files
+        function handleLoadGame() {
+            const fileInput = document.getElementById('idwFileInput');
+            fileInput.click();
+        }
+
+        // Handle IDW file upload
+        function handleIDWFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.name.endsWith('.idw')) {
+                    alert('Please select a valid Iron Dominion World file (.idw)');
+                    return;
+                }
+                console.log(`Loading IDW file: ${file.name}`);
+                // File processing logic will go here
+                // TODO: Load and parse the IDW file
+            }
+        }
+
+        // Toggle background music
+        function toggleMusic() {
+            const audio = document.getElementById('bgMusic');
+            const btn = document.getElementById('musicBtn');
+            const status = document.getElementById('musicStatus');
+            
+            if (audio.muted) {
+                audio.muted = false;
+                btn.textContent = '🔊';
+                status.textContent = 'MUSIC ON';
+            } else {
+                audio.muted = true;
+                btn.textContent = '🔇';
+                status.textContent = 'MUSIC OFF';
+            }
+        }
+
+        // Initialize audio - START PLAYING ON LOAD
+        window.addEventListener('load', () => {
+            const audio = document.getElementById('bgMusic');
+            audio.volume = 0.55; // 55% volume
+            audio.muted = false; // Audio ON by default
+            audio.play().catch(err => console.log('Audio autoplay prevented:', err));
+            document.getElementById('musicBtn').textContent = '🔊';
+            document.getElementById('musicStatus').textContent = 'MUSIC ON';
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', (e) => {
+            const settingsModal = document.getElementById('settingsModal');
+            const battleModal = document.getElementById('battleModal');
+            const loginModal = document.getElementById('loginModal');
+            const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+            
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
+            }
+            if (e.target === battleModal) {
+                battleModal.classList.remove('active');
+            }
+            if (e.target === loginModal) {
+                loginModal.classList.remove('active');
+            }
+            if (e.target === logoutConfirmModal) {
+                logoutConfirmModal.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
