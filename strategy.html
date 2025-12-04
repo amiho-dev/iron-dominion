@@ -210,7 +210,7 @@
     <div id="top-bar">
         <div class="top-section">
             <div style="font-weight: bold; color: var(--accent-color); margin-right: 15px;">IRON DOMINION</div>
-            <select id="country-selector" onchange="game.switchPlayer(this.value)"></select>
+            <div id="player-country-display" style="font-weight: bold; color: #fff; border: 1px solid #444; padding: 5px 10px; background: #222;">-</div>
         </div>
 
         <div class="top-section stats">
@@ -264,21 +264,23 @@
     </div>
 </div>
 
-<!-- HELP MODAL -->
-<div id="help-modal" class="modal">
-    <div class="modal-content">
-        <h1>WELCOME COMMANDER</h1>
-        <p>The world is in chaos. Lead your nation to global dominance.</p>
+<!-- SETUP MODAL -->
+<div id="setup-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <h1>SELECT YOUR NATION</h1>
+        <p>Choose a superpower to lead into the new world order.</p>
         
+        <div id="country-selection-list" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 30px;">
+            <!-- Populated by JS -->
+        </div>
+
         <div style="text-align: left; margin: 20px 0; background: rgba(0,0,0,0.3); padding: 15px;">
-            <h2>CONTROLS</h2>
+            <h2>BRIEFING</h2>
             <p><strong>DRAG</strong> to pan the map view.</p>
             <p><strong>CLICK</strong> on a province to select it.</p>
             <p><strong>MANAGE</strong> your economy and army using the bottom-left panel.</p>
             <p><strong>ATTACK</strong> neighbors by selecting your province, clicking "Launch Assault", then clicking a target.</p>
         </div>
-
-        <button class="btn" style="padding: 15px 40px; font-size: 1.2em;" onclick="document.getElementById('help-modal').style.display='none'">INITIALIZE</button>
     </div>
 </div>
 
@@ -465,7 +467,7 @@ game = {
         this.canvas.height = mapArea.clientHeight;
         
         generateWorldMap();
-        this.initUI();
+        this.initSetup(); // Changed from initUI
         this.render();
         
         // Input Handlers
@@ -480,22 +482,49 @@ game = {
             this.render();
         });
         
-        this.timer = setInterval(() => this.tick(), CONFIG.tickRate);
-        this.log("Global Command Interface Initialized.", "info");
+        // Timer starts after selection
+        this.log("Waiting for commander selection...", "info");
     },
 
-    initUI: function() {
-        const selector = document.getElementById('country-selector');
-        selector.innerHTML = "";
+    initSetup: function() {
+        const container = document.getElementById('country-selection-list');
+        container.innerHTML = "";
+        
         Object.values(countries).forEach(c => {
             if (c.id === "NEUTRAL") return;
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.innerText = c.name;
-            if (c.id === this.playerCountry) opt.selected = true;
-            selector.appendChild(opt);
+            
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.padding = '15px';
+            btn.style.width = '200px';
+            btn.style.border = `2px solid ${c.color}`;
+            btn.style.textAlign = 'left';
+            
+            btn.innerHTML = `
+                <div style="color: ${c.color}; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${c.name}</div>
+                <div style="font-size: 0.8em; color: #aaa;">
+                    Manpower: ${c.manpower}<br>
+                    Industry: ${c.industry}<br>
+                    Aggression: ${c.aggression || 'N/A'}
+                </div>
+            `;
+            
+            btn.onclick = () => this.startGame(c.id);
+            container.appendChild(btn);
         });
+    },
+
+    startGame: function(countryId) {
+        this.playerCountry = countryId;
+        document.getElementById('setup-modal').style.display = 'none';
+        document.getElementById('player-country-display').innerText = countries[countryId].name;
+        document.getElementById('player-country-display').style.color = countries[countryId].color;
+        document.getElementById('player-country-display').style.borderColor = countries[countryId].color;
+        
         this.updateUI();
+        this.timer = setInterval(() => this.tick(), CONFIG.tickRate);
+        this.log(`Commander assigned to ${countries[countryId].name}. Operation started.`, "info");
+        this.render();
     },
 
     switchPlayer: function(countryId) {
