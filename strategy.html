@@ -299,7 +299,6 @@
  */
 
 const CONFIG = {
-    hexSize: 20,
     tickRate: 800,
     colors: {
         water: '#080808',
@@ -311,138 +310,142 @@ const CONFIG = {
 };
 
 // --- WORLD DATA ---
-const ASCII_WORLD = [
-    "................................................................................",
-    "................................................................................",
-    "..........NNNNNN................................................................",
-    "........NNNNNNNNNN..............................................................",
-    ".......NNNNNNNNNNNN...........................EEEEEEEEEE.......RRRRRRRRRRRR.....",
-    "......NNNNNNNNNNNNNN........................EEEEEEEEEEEEEE...RRRRRRRRRRRRRRRR...",
-    "......NNNNNNNNNNNNNN.......................EEEEEEEEEEEEEEEE.RRRRRRRRRRRRRRRRRR..",
-    ".......NNNNNNNNNNNN........................EEEEEEEEEEEEEEE..RRRRRRRRRRRRRRRRRR..",
-    "........NNNNNNNNNN..........................EEEEEEEEEEEEE....CCCCCCCCCCCCCCCC...",
-    ".........NNNNNNNN............................FFFFFFFFFFF......CCCCCCCCCCCCCC....",
-    "..........NNNNNN..............................FFFFFFFFF........CCCCCCCCCCCC.....",
-    "...........NNNN...............................FFFFFFFFF.........CCCCCCCCCC......",
-    "............NN................................FFFFFFFFF..........CCCCCCCC.......",
-    "..............................................FFFFFFFFF...........CCCCCC........",
-    "............SSSS..............................FFFFFFFFF.........................",
-    "...........SSSSSS.............................FFFFFFFFF.........................",
-    "..........SSSSSSSS.............................FFFFFFF.............OOOOOO.......",
-    "..........SSSSSSSS.............................FFFFFFF............OOOOOOOO......",
-    "...........SSSSSS...............................FFFFF.............OOOOOOOO......",
-    "............SSSS.................................FFF...............OOOOOO.......",
-    ".............SS...................................F.................OOOO........",
-    "................................................................................"
-];
-
-const countries = {
-    "USA": { id: "USA", name: "United Republic", color: "#3b82f6", manpower: 2000, industry: 10, ai: false },
-    "EU": { id: "EU", name: "European Fed.", color: "#8b5cf6", manpower: 1500, industry: 8, ai: true, aggression: 0.4 },
-    "RUS": { id: "RUS", name: "Eurasian Pact", color: "#ef4444", manpower: 2500, industry: 6, ai: true, aggression: 0.8 },
-    "CHN": { id: "CHN", name: "Dragon Alliance", color: "#eab308", manpower: 3000, industry: 9, ai: true, aggression: 0.6 },
-    "AFR": { id: "AFR", name: "African Union", color: "#22c55e", manpower: 1000, industry: 4, ai: true, aggression: 0.3 },
-    "SAM": { id: "SAM", name: "Libertad Coalition", color: "#f97316", manpower: 1000, industry: 4, ai: true, aggression: 0.4 },
-    "AUS": { id: "AUS", name: "Pacific Defense", color: "#06b6d4", manpower: 800, industry: 5, ai: true, aggression: 0.2 },
-    "NEUTRAL": { id: "NEUTRAL", name: "Independent", color: "#333333", manpower: 0, industry: 0, ai: false }
-};
-
+let countries = {};
 let provinces = [];
 let game = null;
 
 // --- GENERATION ---
 
 class Province {
-    constructor(id, q, r, region) {
+    constructor(id, feature) {
         this.id = id;
-        this.q = q;
-        this.r = r;
-        this.region = region;
-        this.name = `Sector ${id}`;
-        this.owner = "NEUTRAL";
-        this.army = 0;
+        this.feature = feature;
+        this.owner = feature.id; // Initially owned by the country itself
+        this.name = feature.properties.name;
+        this.army = 50 + Math.floor(Math.random() * 100);
         this.buildings = { factory: 0, fort: 0 };
         this.neighbors = [];
         
-        // Calculate pixel center
-        const size = CONFIG.hexSize;
-        // Offset to center roughly in the "world" space
-        this.center = {
-            x: size * (Math.sqrt(3) * q + Math.sqrt(3)/2 * r) + 100,
-            y: size * (3/2 * r) + 100
-        };
+        // Calculate centroid and bounds
+        this.polygons = [];
+        if (feature.geometry.type === 'Polygon') {
+            this.polygons.push(feature.geometry.coordinates[0]);
+        } else if (feature.geometry.type === 'MultiPolygon') {
+            feature.geometry.coordinates.forEach(poly => this.polygons.push(poly[0]));
+        }
         
-        this.points = this.generateHexPoints();
+        this.center = this.calculateCentroid();
+        this.bounds = this.calculateBounds();
     }
 
-    generateHexPoints() {
-        const points = [];
-        for (let i = 0; i < 6; i++) {
-            const angle_deg = 60 * i - 30;
-            const angle_rad = Math.PI / 180 * angle_deg;
-            points.push({
-                x: this.center.x + CONFIG.hexSize * Math.cos(angle_rad),
-                y: this.center.y + CONFIG.hexSize * Math.sin(angle_rad)
+    calculateCentroid() {
+        let x = 0, y = 0, n = 0;
+        this.polygons.forEach(poly => {
+            poly.forEach(pt => {
+                x += pt[0];
+                y += pt[1];
+                n++;
             });
-        }
-        return points;
+        });
+        return { x: x/n, y: y/n };
+    }
+
+    calculateBounds() {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        this.polygons.forEach(poly => {
+            poly.forEach(pt => {
+                if (pt[0] < minX) minX = pt[0];
+                if (pt[0] > maxX) maxX = pt[0];
+                if (pt[1] < minY) minY = pt[1];
+                if (pt[1] > maxY) maxY = pt[1];
+            });
+        });
+        return { minX, minY, maxX, maxY };
     }
 }
 
-function generateWorldMap() {
+const MAJOR_NATIONS = {
+    "USA": { color: "#4488ff", name: "United States" },
+    "CHN": { color: "#ff4444", name: "China" },
+    "RUS": { color: "#cc4444", name: "Russia" },
+    "DEU": { color: "#aaaaaa", name: "Germany" },
+    "FRA": { color: "#4444ff", name: "France" },
+    "GBR": { color: "#cc8888", name: "United Kingdom" },
+    "JPN": { color: "#ffffff", name: "Japan" },
+    "BRA": { color: "#44cc44", name: "Brazil" },
+    "IND": { color: "#ff8844", name: "India" },
+    "CAN": { color: "#ffcccc", name: "Canada" },
+    "AUS": { color: "#44ccff", name: "Australia" },
+    "ITA": { color: "#44aa44", name: "Italy" },
+    "ESP": { color: "#cccc44", name: "Spain" },
+    "TUR": { color: "#44aaaa", name: "Turkey" },
+    "ZAF": { color: "#aa44aa", name: "South Africa" },
+    "EGY": { color: "#cccc88", name: "Egypt" },
+    "SAU": { color: "#448844", name: "Saudi Arabia" },
+    "IRN": { color: "#44aa88", name: "Iran" },
+    "PAK": { color: "#448888", name: "Pakistan" },
+    "IDN": { color: "#aa8844", name: "Indonesia" },
+    "KOR": { color: "#4444aa", name: "South Korea" },
+    "MEX": { color: "#88aa44", name: "Mexico" }
+};
+
+async function generateWorldMap() {
     provinces = [];
-    let idCounter = 0;
-    const rows = ASCII_WORLD.length;
-    const cols = ASCII_WORLD[0].length;
+    countries = {};
     
-    for (let r = 0; r < rows; r++) {
-        for (let q = 0; q < cols; q++) {
-            const char = ASCII_WORLD[r][q];
-            if (char !== '.') {
-                let region = "NEUTRAL";
-                let owner = "NEUTRAL";
-                
-                if (char === 'N') { region = "NA"; owner = "USA"; }
-                else if (char === 'S') { region = "SA"; owner = "SAM"; }
-                else if (char === 'E') { region = "EU"; owner = "EU"; }
-                else if (char === 'F') { region = "AF"; owner = "AFR"; }
-                else if (char === 'R') { region = "AS"; owner = "RUS"; }
-                else if (char === 'C') { region = "AS"; owner = "CHN"; }
-                else if (char === 'O') { region = "OC"; owner = "AUS"; }
-
-                const axialQ = q - Math.floor(r/2);
-                const p = new Province(idCounter++, axialQ, r, region);
-                p.owner = owner;
-                
-                if (Math.random() < 0.15) p.owner = "NEUTRAL";
-
-                if (p.owner !== "NEUTRAL") {
-                    p.army = 50 + Math.floor(Math.random() * 100);
-                    if (Math.random() < 0.3) p.buildings.factory = 1;
-                } else {
-                    p.army = 10 + Math.floor(Math.random() * 20);
-                }
-                p.name = generateCityName(region);
-                provinces.push(p);
+    try {
+        const response = await fetch('assets/world.json');
+        const data = await response.json();
+        
+        data.features.forEach((feature, index) => {
+            // Determine color and name
+            let color = `hsl(${Math.random() * 360}, 60%, 40%)`;
+            let name = feature.properties.name;
+            
+            if (MAJOR_NATIONS[feature.id]) {
+                color = MAJOR_NATIONS[feature.id].color;
+                // name = MAJOR_NATIONS[feature.id].name; // Use GeoJSON name usually, but can override
             }
-        }
-    }
 
-    provinces.forEach(p => {
-        const directions = [{q: 1, r: 0}, {q: 1, r: -1}, {q: 0, r: -1}, {q: -1, r: 0}, {q: -1, r: 1}, {q: 0, r: 1}];
-        directions.forEach(d => {
-            const neighbor = provinces.find(n => n.q === p.q + d.q && n.r === p.r + d.r);
-            if (neighbor) p.neighbors.push(neighbor.id);
+            // Create country entry
+            countries[feature.id] = {
+                id: feature.id,
+                name: name,
+                color: color,
+                manpower: 1000 + Math.floor(Math.random() * 2000),
+                industry: 5 + Math.floor(Math.random() * 10),
+                ai: true,
+                aggression: Math.random()
+            };
+
+            // Create province
+            const p = new Province(index, feature);
+            provinces.push(p);
         });
-    });
+
+        // Calculate neighbors (simple distance based for now)
+        // This is O(N^2) but N is small (~180)
+        provinces.forEach(p1 => {
+            provinces.forEach(p2 => {
+                if (p1 === p2) return;
+                const dx = p1.center.x - p2.center.x;
+                const dy = p1.center.y - p2.center.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 15) { // Threshold for neighbors in lat/lon degrees
+                    p1.neighbors.push(p2.id);
+                }
+            });
+        });
+        
+        console.log(`Generated ${provinces.length} provinces.`);
+        
+    } catch (e) {
+        console.error("Failed to load map data", e);
+    }
 }
 
 function generateCityName(region) {
-    const prefixes = { "NA": ["New", "Fort", "San"], "EU": ["Nov", "Alt", "Burg"], "AS": ["Xin", "Dai", "Tash"], "AF": ["El", "Ben", "Dar"], "SA": ["Rio", "Santa", "Villa"], "OC": ["Port", "New", "Alice"] };
-    const suffixes = { "NA": ["york", "ton", "land"], "EU": ["grad", "burg", "furt"], "AS": ["jing", "hai", "tok"], "AF": ["ro", "town", "shasa"], "SA": ["paulo", "res", "go"], "OC": ["ney", "bourne", "th"] };
-    const p = prefixes[region] || ["City"];
-    const s = suffixes[region] || ["ville"];
-    return p[Math.floor(Math.random()*p.length)] + " " + s[Math.floor(Math.random()*s.length)];
+    return "City"; // Deprecated
 }
 
 // --- GAME ENGINE ---
@@ -455,10 +458,10 @@ game = {
     selectedProvId: null,
     attackMode: false,
     timer: null,
-    playerCountry: "USA",
-    camera: { x: 0, y: 0, isDragging: false, lastX: 0, lastY: 0 },
+    playerCountry: null,
+    camera: { x: 0, y: 0, zoom: 4, isDragging: false, lastX: 0, lastY: 0 },
 
-    init: function() {
+    init: async function() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -466,7 +469,7 @@ game = {
         this.canvas.width = mapArea.clientWidth;
         this.canvas.height = mapArea.clientHeight;
         
-        generateWorldMap();
+        await generateWorldMap();
         
         // Check for country parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -485,6 +488,7 @@ game = {
         this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
         this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
         this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+        this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
         
         window.addEventListener('resize', () => {
             this.canvas.width = mapArea.clientWidth;
@@ -498,26 +502,27 @@ game = {
     },
 
     initSetup: function() {
+        document.getElementById('setup-modal').style.display = 'flex';
         const container = document.getElementById('country-selection-list');
         container.innerHTML = "";
         
-        Object.values(countries).forEach(c => {
+        // Sort countries by name
+        const sortedCountries = Object.values(countries).sort((a, b) => a.name.localeCompare(b.name));
+
+        sortedCountries.forEach(c => {
             if (c.id === "NEUTRAL") return;
             
             const btn = document.createElement('button');
             btn.className = 'btn';
-            btn.style.padding = '15px';
-            btn.style.width = '200px';
-            btn.style.border = `2px solid ${c.color}`;
+            btn.style.padding = '10px';
+            btn.style.width = '180px';
+            btn.style.border = `1px solid ${c.color}`;
             btn.style.textAlign = 'left';
+            btn.style.background = 'rgba(0,0,0,0.5)';
             
             btn.innerHTML = `
-                <div style="color: ${c.color}; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${c.name}</div>
-                <div style="font-size: 0.8em; color: #aaa;">
-                    Manpower: ${c.manpower}<br>
-                    Industry: ${c.industry}<br>
-                    Aggression: ${c.aggression || 'N/A'}
-                </div>
+                <div style="color: ${c.color}; font-weight: bold;">${c.name}</div>
+                <div style="font-size: 0.8em; color: #aaa;">MP: ${c.manpower}</div>
             `;
             
             btn.onclick = () => this.startGame(c.id);
@@ -619,20 +624,52 @@ game = {
         }
 
         // Hover
-        const worldX = mouseX - this.camera.x;
-        const worldY = mouseY - this.camera.y;
+        // Convert mouse screen coords to world coords
+        // The render transform is: 
+        // 1. Translate(camera.x, camera.y)
+        // 2. Scale(zoom, zoom)
+        // 3. Translate(width/2/zoom, height/2/zoom)
+        // 4. Scale(1, -1)
+        
+        // So to reverse:
+        // worldY = (mouseY - camera.y) / zoom - height/2/zoom
+        // worldY = -worldY (flip back)
+        
+        // Let's re-derive carefully from render:
+        // screenX = (worldX + width/2/zoom) * zoom + camera.x
+        // screenX = worldX * zoom + width/2 + camera.x
+        // worldX = (screenX - camera.x - width/2) / zoom
+        
+        // screenY = (-worldY + height/2/zoom) * zoom + camera.y
+        // screenY = -worldY * zoom + height/2 + camera.y
+        // worldY = -(screenY - camera.y - height/2) / zoom
+        
+        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
+        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
+        
         const tooltip = document.getElementById('tooltip');
         
         let hovered = null;
-        let minDst = Infinity;
         
-        provinces.forEach(p => {
-            const dst = Math.hypot(p.center.x - worldX, p.center.y - worldY);
-            if (dst < CONFIG.hexSize && dst < minDst) {
-                minDst = dst;
-                hovered = p;
+        // Check bounds first, then polygon
+        for (let p of provinces) {
+            if (worldX >= p.bounds.minX && worldX <= p.bounds.maxX &&
+                worldY >= p.bounds.minY && worldY <= p.bounds.maxY) {
+                
+                let inside = false;
+                for (let poly of p.polygons) {
+                    if (this.pointInPolygon([worldX, worldY], poly)) {
+                        inside = true;
+                        break;
+                    }
+                }
+                
+                if (inside) {
+                    hovered = p;
+                    break; // Found the top one (assuming no overlap, or just take first)
+                }
             }
-        });
+        }
 
         if (hovered) {
             tooltip.style.display = 'block';
@@ -650,45 +687,87 @@ game = {
 
     handleMouseUp: function(e) {
         if (!this.camera.isDragging) return;
-        
-        // If it was a short click (not a drag), treat as click
-        // Simple check: if moved less than 5 pixels
-        // For now, let's just check if we are dragging. 
-        // Actually, standard behavior: if mouseup happens at same coords as mousedown, it's a click.
-        // But we updated lastX/Y.
-        
-        // Let's use a flag "hasMoved"
-        // Simplified: If we are here, we stopped dragging.
         this.camera.isDragging = false;
         
-        // Check for click (if we didn't move much? Hard to track here without more state)
-        // Let's just do a hit test on MouseUp. If it was a drag, the user likely moved the mouse.
-        // If the user just clicked, handleMouseMove didn't move the camera much.
-        
-        // Better approach: Do hit test here.
+        // Check if it was a click (minimal movement)
+        const dx = e.clientX - this.camera.lastX;
+        const dy = e.clientY - this.camera.lastY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return; // Was a drag
+
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left - this.camera.x;
-        const y = e.clientY - rect.top - this.camera.y;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
+        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
         
+        // Point in polygon check
         let clicked = null;
-        let minDst = Infinity;
-        provinces.forEach(p => {
-            const dst = Math.hypot(p.center.x - x, p.center.y - y);
-            if (dst < CONFIG.hexSize && dst < minDst) {
-                minDst = dst;
-                clicked = p;
+        for (let p of provinces) {
+            // Bounds check optimization
+            if (worldX < p.bounds.minX || worldX > p.bounds.maxX ||
+                worldY < p.bounds.minY || worldY > p.bounds.maxY) continue;
+
+            for (let poly of p.polygons) {
+                if (this.pointInPolygon([worldX, worldY], poly)) {
+                    clicked = p;
+                    break;
+                }
             }
-        });
+            if (clicked) break;
+        }
 
         if (clicked) {
             this.handleProvinceClick(clicked);
         } else {
-            // Deselect if clicked empty space (and not dragging significantly)
-            // For now, just deselect
-            // this.selectedProvId = null;
-            // this.updateUI();
-            // this.render();
+            // Deselect if clicked on water
+            this.selectedProvId = null;
+            this.attackMode = false;
+            this.updateUI();
+            this.render();
         }
+    },
+
+    pointInPolygon: function(point, vs) {
+        // Ray-casting algorithm based on
+        // https://github.com/substack/point-in-polygon
+        var x = point[0], y = point[1];
+        var inside = false;
+        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            var xi = vs[i][0], yi = vs[i][1];
+            var xj = vs[j][0], yj = vs[j][1];
+            var intersect = ((yi > y) != (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    },
+
+    handleWheel: function(e) {
+        e.preventDefault();
+        const zoomSensitivity = 0.001;
+        const delta = -e.deltaY * zoomSensitivity;
+        const newZoom = Math.min(Math.max(this.camera.zoom + delta * this.camera.zoom, 1), 50);
+        
+        // Zoom towards mouse pointer
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Calculate world coordinates before zoom
+        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
+        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
+        
+        // Adjust camera to keep world point under mouse
+        // NewCamX = MouseX - (WorldX * NewZ + W/2)
+        this.camera.x = mouseX - (worldX * newZoom + this.canvas.width/2);
+        
+        // NewCamY = MouseY - (WorldY * -NewZ + H/2)
+        this.camera.y = mouseY - (worldY * -newZoom + this.canvas.height/2);
+        
+        this.camera.zoom = newZoom;
+        
+        this.render();
     },
 
     handleProvinceClick: function(clicked) {
@@ -712,7 +791,7 @@ game = {
 
     actions: {
         recruit: function() {
-            if (!game.selectedProvId) return;
+            if (game.selectedProvId === null) return;
             const p = provinces.find(prov => prov.id === game.selectedProvId);
             const c = countries[game.playerCountry];
             if (p.owner !== game.playerCountry) return;
@@ -725,7 +804,7 @@ game = {
             }
         },
         build: function(type) {
-            if (!game.selectedProvId) return;
+            if (game.selectedProvId === null) return;
             const p = provinces.find(prov => prov.id === game.selectedProvId);
             const c = countries[game.playerCountry];
             if (p.owner !== game.playerCountry) return;
@@ -739,7 +818,7 @@ game = {
             }
         },
         attackMode: function() {
-            if (!game.selectedProvId) return;
+            if (game.selectedProvId === null) return;
             const p = provinces.find(prov => prov.id === game.selectedProvId);
             if (p.owner !== game.playerCountry) return;
             game.attackMode = true;
@@ -747,7 +826,7 @@ game = {
             game.log("Select target province...", "info");
         },
         cheatAnnex: function() {
-            if (!game.selectedProvId) return;
+            if (game.selectedProvId === null) return;
             const p = provinces.find(prov => prov.id === game.selectedProvId);
             if (p.owner === game.playerCountry) return;
             const oldOwner = p.owner;
@@ -792,6 +871,7 @@ game = {
     },
 
     updateUI: function() {
+        if (!this.playerCountry || !countries[this.playerCountry]) return;
         const p = countries[this.playerCountry];
         document.getElementById('player-manpower').innerText = Math.floor(p.manpower);
         document.getElementById('player-industry').innerText = p.industry;
@@ -828,15 +908,24 @@ game = {
 
         // Apply Camera
         ctx.translate(this.camera.x, this.camera.y);
+        ctx.scale(this.camera.zoom, this.camera.zoom);
+        
+        // Center map roughly (GeoJSON is -180 to 180, -90 to 90)
+        // Move (0,0) to center of screen if zoom is 1?
+        // Actually, let's just translate so 0,0 is center of map
+        ctx.translate(this.canvas.width/2 / this.camera.zoom, this.canvas.height/2 / this.camera.zoom);
+        // Flip Y because canvas Y is down, Lat is up
+        ctx.scale(1, -1);
 
         provinces.forEach(p => {
             ctx.beginPath();
-            const pts = p.points;
-            ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) {
-                ctx.lineTo(pts[i].x, pts[i].y);
-            }
-            ctx.closePath();
+            p.polygons.forEach(poly => {
+                ctx.moveTo(poly[0][0], poly[0][1]);
+                for (let i = 1; i < poly.length; i++) {
+                    ctx.lineTo(poly[i][0], poly[i][1]);
+                }
+                ctx.closePath();
+            });
 
             if (p.id === this.selectedProvId) {
                 ctx.fillStyle = CONFIG.colors.selected;
@@ -846,23 +935,32 @@ game = {
             ctx.fill();
 
             ctx.strokeStyle = CONFIG.colors.border;
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 0.5 / this.camera.zoom;
             if (p.id === this.selectedProvId) {
                 ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 2 / this.camera.zoom;
             }
             ctx.stroke();
 
+            // Draw army/buildings at centroid
+            // Scale text inverse to zoom so it stays readable
+            ctx.save();
+            ctx.translate(p.center.x, p.center.y);
+            ctx.scale(1, -1); // Flip back for text
+            const textScale = 1 / this.camera.zoom;
+            ctx.scale(textScale, textScale);
+            
             if (p.buildings.factory > 0) {
                 ctx.fillStyle = 'rgba(255,255,255,0.5)';
                 ctx.font = '10px Arial';
-                ctx.fillText("⚙", p.center.x - 5, p.center.y);
+                ctx.fillText("⚙", -5, 0);
             }
             if (p.buildings.fort > 0) {
                 ctx.fillStyle = 'rgba(255,255,255,0.5)';
                 ctx.font = '10px Arial';
-                ctx.fillText("♜", p.center.x + 5, p.center.y);
+                ctx.fillText("♜", 5, 0);
             }
+            ctx.restore();
         });
         
         ctx.restore();
