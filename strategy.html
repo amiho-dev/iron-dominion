@@ -807,31 +807,20 @@ game = {
             this.camera.y += dy;
             this.camera.lastX = e.clientX;
             this.camera.lastY = e.clientY;
-            this.render();
+            
+            // Use requestAnimationFrame for smoother panning
+            if (!this.renderPending) {
+                this.renderPending = true;
+                requestAnimationFrame(() => {
+                    this.render();
+                    this.renderPending = false;
+                });
+            }
             return; // Don't hover while dragging
         }
 
         // Hover
         // Convert mouse screen coords to world coords
-        // The render transform is: 
-        // 1. Translate(camera.x, camera.y)
-        // 2. Scale(zoom, zoom)
-        // 3. Translate(width/2/zoom, height/2/zoom)
-        // 4. Scale(1, -1)
-        
-        // So to reverse:
-        // worldY = (mouseY - camera.y) / zoom - height/2/zoom
-        // worldY = -worldY (flip back)
-        
-        // Let's re-derive carefully from render:
-        // screenX = (worldX + width/2/zoom) * zoom + camera.x
-        // screenX = worldX * zoom + width/2 + camera.x
-        // worldX = (screenX - camera.x - width/2) / zoom
-        
-        // screenY = (-worldY + height/2/zoom) * zoom + camera.y
-        // screenY = -worldY * zoom + height/2 + camera.y
-        // worldY = -(screenY - camera.y - height/2) / zoom
-        
         const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
         const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
         
@@ -955,7 +944,13 @@ game = {
         
         this.camera.zoom = newZoom;
         
-        this.render();
+        if (!this.renderPending) {
+            this.renderPending = true;
+            requestAnimationFrame(() => {
+                this.render();
+                this.renderPending = false;
+            });
+        }
     },
 
     handleProvinceClick: function(clicked) {
@@ -1241,17 +1236,31 @@ game = {
         ctx.translate(this.camera.x, this.camera.y);
         ctx.scale(this.camera.zoom, this.camera.zoom);
         
-        // Center map roughly (GeoJSON is -180 to 180, -90 to 90)
-        // Move (0,0) to center of screen if zoom is 1?
-        // Actually, let's just translate so 0,0 is center of map
+        // Center map roughly
         ctx.translate(this.canvas.width/2 / this.camera.zoom, this.canvas.height/2 / this.camera.zoom);
         // Flip Y because canvas Y is down, Lat is up
         ctx.scale(1, -1);
 
-        // Draw Water/Background
-        // (Already filled)
+        // Calculate Viewport Bounds in World Coordinates
+        // We need to know what part of the world is currently visible to cull invisible provinces
+        // Screen: (0,0) to (width, height)
+        // Inverse Transform:
+        // worldX = (screenX - camera.x - width/2) / zoom
+        // worldY = -(screenY - camera.y - height/2) / zoom
+        
+        const minWorldX = (0 - this.camera.x - this.canvas.width/2) / this.camera.zoom;
+        const maxWorldX = (this.canvas.width - this.camera.x - this.canvas.width/2) / this.camera.zoom;
+        // Y is flipped, so min screen Y is max world Y
+        const maxWorldY = -(0 - this.camera.y - this.canvas.height/2) / this.camera.zoom;
+        const minWorldY = -(this.canvas.height - this.camera.y - this.canvas.height/2) / this.camera.zoom;
 
         provinces.forEach(p => {
+            // Culling Check
+            if (p.bounds.maxX < minWorldX || p.bounds.minX > maxWorldX ||
+                p.bounds.maxY < minWorldY || p.bounds.minY > maxWorldY) {
+                return;
+            }
+
             ctx.beginPath();
             p.polygons.forEach(poly => {
                 ctx.moveTo(poly[0][0], poly[0][1]);
@@ -1267,17 +1276,11 @@ game = {
                 ctx.fillStyle = countries[p.owner].color;
             }
             
-            // Add shadow effect for "3D" look
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            ctx.shadowBlur = 2;
-            ctx.shadowOffsetX = 1;
-            ctx.shadowOffsetY = 1;
+            // Removed shadow for performance
+            // ctx.shadowColor = 'rgba(0,0,0,0.5)'; ...
             
             ctx.fill();
             
-            // Reset shadow for stroke
-            ctx.shadowColor = 'transparent';
-
             ctx.strokeStyle = CONFIG.colors.border;
             ctx.lineWidth = 0.5 / this.camera.zoom;
             if (p.id === this.selectedProvId) {
