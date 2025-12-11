@@ -255,6 +255,8 @@
 
             <div id="owner-actions">
                 <button class="btn btn-block" onclick="game.actions.openArmyDesigner()">🎖️ Army Designer</button>
+                <div id="army-list" style="max-height: 100px; overflow-y: auto; margin-bottom: 10px;"></div>
+                <button class="btn btn-block" onclick="game.actions.moveArmyMode()" id="btn-move-army" style="display: none;">🚀 Move Army</button>
                 <button class="btn btn-block" onclick="game.actions.recruit()">Recruit (+50 Army) <span style="float:right; color:#888">100MP</span></button>
                 <button class="btn btn-block" onclick="game.actions.build('factory')">Build Factory <span style="float:right; color:#888">500MP</span></button>
                 <button class="btn btn-block" onclick="game.actions.build('fort')">Build Fort <span style="float:right; color:#888">300MP</span></button>
@@ -391,6 +393,8 @@ class Army {
         this.provinceId = provinceId;
         this.composition = composition; // { infantry: 5, tanks: 2, ... }
         this.strength = this.calculateStrength();
+        this.moving = false;
+        this.targetProvinceId = null;
     }
     
     calculateStrength() {
@@ -405,6 +409,56 @@ class Army {
     
     getTotalUnits() {
         return Object.values(this.composition).reduce((a, b) => a + b, 0);
+    }
+    
+    moveToProvince(targetId) {
+        const currentProv = provinces.find(p => p.id === this.provinceId);
+        const targetProv = provinces.find(p => p.id === targetId);
+        
+        if (!currentProv || !targetProv) return false;
+        
+        // Check if target is neighbor
+        if (!currentProv.neighbors.includes(targetId)) {
+            game.log("Target province is not adjacent!", "info");
+            return false;
+        }
+        
+        // Remove from current province
+        currentProv.armies = currentProv.armies.filter(aid => aid !== this.id);
+        
+        // Move to target
+        this.provinceId = targetId;
+        targetProv.armies.push(this.id);
+        
+        // Auto-capture: if target is enemy territory, capture it
+        if (targetProv.owner !== this.owner) {
+            const oldOwner = targetProv.owner;
+            const oldOwnerName = countries[oldOwner] ? countries[oldOwner].name : 'Unknown';
+            
+            // Check if at war (or auto-declare for now)
+            const myCountry = countries[this.owner];
+            if (myCountry && !myCountry.diplomacy.wars.includes(oldOwner)) {
+                // Auto-declare war
+                myCountry.diplomacy.wars.push(oldOwner);
+                if (countries[oldOwner]) {
+                    countries[oldOwner].diplomacy.wars.push(this.owner);
+                }
+                game.log(`War declared on ${oldOwnerName}!`, "war");
+            }
+            
+            // Capture the province
+            targetProv.owner = this.owner;
+            targetProv.army = 0;
+            
+            game.log(`Army captured ${targetProv.name} from ${oldOwnerName}!`, "war");
+            
+            // Re-render map cache since ownership changed
+            invalidateMapCache();
+        }
+        
+        game.updateUI();
+        game.render();
+        return true;
     }
 }
 
@@ -619,30 +673,35 @@ async function generateWorldMap() {
 
 // Pre-render the entire map to an offscreen canvas
 function preRenderMap() {
-    // Calculate world bounds
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    provinces.forEach(p => {
-        if (p.bounds.minX < minX) minX = p.bounds.minX;
-        if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
-        if (p.bounds.minY < minY) minY = p.bounds.minY;
-        if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
-    });
+    // Calculate world bounds (cache these for reuse)
+    if (!cachedMapCanvas || !cachedMapCanvas.worldBounds) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        provinces.forEach(p => {
+            if (p.bounds.minX < minX) minX = p.bounds.minX;
+            if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
+            if (p.bounds.minY < minY) minY = p.bounds.minY;
+            if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
+        });
+        
+        const worldWidth = maxX - minX;
+        const worldHeight = maxY - minY;
+        const scale = 4; // Base resolution scale
+        
+        cachedMapCanvas = document.createElement('canvas');
+        cachedMapCanvas.width = worldWidth * scale;
+        cachedMapCanvas.height = worldHeight * scale;
+        cachedMapCanvas.worldBounds = { minX, minY, maxX, maxY, scale, worldWidth, worldHeight };
+    }
     
-    const worldWidth = maxX - minX;
-    const worldHeight = maxY - minY;
-    const scale = 4; // Base resolution scale
-    
-    cachedMapCanvas = document.createElement('canvas');
-    cachedMapCanvas.width = worldWidth * scale;
-    cachedMapCanvas.height = worldHeight * scale;
-    cachedMapCanvas.worldBounds = { minX, minY, maxX, maxY, scale };
-    
+    const wb = cachedMapCanvas.worldBounds;
     const ctx = cachedMapCanvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, cachedMapCanvas.width, cachedMapCanvas.height);
     ctx.save();
-    ctx.scale(scale, scale);
-    ctx.translate(-minX, -minY);
+    ctx.scale(wb.scale, wb.scale);
+    ctx.translate(-wb.minX, -wb.minY);
     ctx.scale(1, -1);
-    ctx.translate(0, -(maxY + minY));
+    ctx.translate(0, -(wb.maxY + wb.minY));
     
     // Draw all provinces
     provinces.forEach(p => {
@@ -663,6 +722,13 @@ function preRenderMap() {
     
     ctx.restore();
     console.log(`Pre-rendered map: ${cachedMapCanvas.width}x${cachedMapCanvas.height}`);
+}
+
+// Invalidate and re-render the cached map (call when ownership changes)
+function invalidateMapCache() {
+    if (cachedMapCanvas) {
+        preRenderMap();
+    }
 }
 
 function createProvince(id, feature, ownerId) {
@@ -693,6 +759,8 @@ game = {
     paused: false,
     selectedProvId: null,
     attackMode: false,
+    moveArmyMode: false,
+    movingArmyId: null,
     timer: null,
     playerCountry: null,
     camera: { x: 0, y: 0, zoom: 4, isDragging: false, lastX: 0, lastY: 0 },
@@ -1065,6 +1133,9 @@ game = {
             // Deselect if clicked on water
             this.selectedProvId = null;
             this.attackMode = false;
+            this.moveArmyMode = false;
+            this.movingArmyId = null;
+            document.getElementById('map-area').style.cursor = 'grab';
             this.updateUI();
             this.render();
         }
@@ -1135,6 +1206,18 @@ game = {
     },
 
     handleProvinceClick: function(clicked) {
+        // Handle move army mode
+        if (this.moveArmyMode && this.movingArmyId !== null) {
+            const army = armies.find(a => a.id === this.movingArmyId);
+            if (army) {
+                army.moveToProvince(clicked.id);
+            }
+            this.moveArmyMode = false;
+            this.movingArmyId = null;
+            document.getElementById('map-area').style.cursor = 'grab';
+            return;
+        }
+        
         if (this.attackMode && this.selectedProvId !== null) {
             const source = provinces.find(p => p.id === this.selectedProvId);
             if (source.neighbors.includes(clicked.id)) {
@@ -1147,6 +1230,7 @@ game = {
         } else {
             this.selectedProvId = clicked.id;
             this.attackMode = false;
+            this.moveArmyMode = false;
             document.getElementById('map-area').style.cursor = 'grab';
         }
         this.updateUI();
@@ -1280,6 +1364,7 @@ game = {
             p.owner = game.playerCountry;
             p.army = 100;
             game.log(`CHEAT: Annexed ${p.name} from ${countries[oldOwner].name}`, "war");
+            invalidateMapCache();
             game.updateUI();
             game.render();
         },
@@ -1288,6 +1373,19 @@ game = {
             const p = provinces.find(prov => prov.id === game.selectedProvId);
             if (p.owner !== game.playerCountry) return;
             game.armyDesigner.open(p.id);
+        },
+        moveArmyMode: function() {
+            if (game.selectedProvId === null) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            if (!p || p.owner !== game.playerCountry) return;
+            if (p.armies.length === 0) {
+                game.log("No armies to move!", "info");
+                return;
+            }
+            game.moveArmyMode = true;
+            game.movingArmyId = p.armies[0]; // Move first army
+            document.getElementById('map-area').style.cursor = 'crosshair';
+            game.log("Select destination province (must be adjacent)...", "info");
         }
     },
     
@@ -1419,6 +1517,7 @@ game = {
             defenderProv.army = remaining;
             defenderProv.buildings.fort = 0;
             this.log(`${countries[attackerProv.owner].name} seized ${defenderProv.name}`, "war");
+            invalidateMapCache(); // Re-render cached map since ownership changed
         } else {
             const remaining = Math.floor(defenderProv.army * 0.7);
             defenderProv.army = remaining;
@@ -1461,6 +1560,29 @@ game = {
 
             const isMine = prov.owner === this.playerCountry;
             document.getElementById('owner-actions').style.display = isMine ? 'block' : 'none';
+            
+            // Update army list and move button
+            if (isMine) {
+                const armyListEl = document.getElementById('army-list');
+                const moveBtn = document.getElementById('btn-move-army');
+                
+                if (prov.armies.length > 0) {
+                    moveBtn.style.display = 'block';
+                    armyListEl.innerHTML = '';
+                    prov.armies.forEach(armyId => {
+                        const army = armies.find(a => a.id === armyId);
+                        if (army) {
+                            const div = document.createElement('div');
+                            div.style.cssText = 'font-size: 0.8em; color: #aaa; padding: 2px 0; border-bottom: 1px solid #222;';
+                            div.innerHTML = `⚔️ Army #${army.id}: ${army.getTotalUnits()} units (Str: ${army.calculateStrength()})`;
+                            armyListEl.appendChild(div);
+                        }
+                    });
+                } else {
+                    moveBtn.style.display = 'none';
+                    armyListEl.innerHTML = '<div style="font-size: 0.8em; color: #555;">No armies stationed</div>';
+                }
+            }
             
             // Diplomacy UI Logic
             const diplomacySection = document.getElementById('diplomacy-section');
@@ -1529,58 +1651,38 @@ game = {
         const maxWorldY = -(0 - this.camera.y - this.canvas.height/2) / this.camera.zoom;
         const minWorldY = -(this.canvas.height - this.camera.y - this.canvas.height/2) / this.camera.zoom;
 
-        // Draw provinces (with selection highlight)
-        provinces.forEach(p => {
-            // Culling Check
-            if (p.bounds.maxX < minWorldX || p.bounds.minX > maxWorldX ||
-                p.bounds.maxY < minWorldY || p.bounds.minY > maxWorldY) {
-                return;
-            }
+        // Use pre-rendered cached map if available
+        if (cachedMapCanvas && cachedMapCanvas.worldBounds) {
+            const wb = cachedMapCanvas.worldBounds;
+            ctx.save();
+            ctx.scale(1, -1);
+            ctx.drawImage(
+                cachedMapCanvas,
+                wb.minX, -wb.maxY,
+                (wb.maxX - wb.minX), (wb.maxY - wb.minY)
+            );
+            ctx.restore();
+        }
 
-            ctx.beginPath();
-            p.polygons.forEach(poly => {
-                ctx.moveTo(poly[0][0], poly[0][1]);
-                for (let i = 1; i < poly.length; i++) {
-                    ctx.lineTo(poly[i][0], poly[i][1]);
-                }
-                ctx.closePath();
-            });
-
-            if (p.id === this.selectedProvId) {
+        // Only draw selected province highlight and dynamic overlays
+        if (this.selectedProvId !== null) {
+            const p = provinces.find(prov => prov.id === this.selectedProvId);
+            if (p) {
+                ctx.beginPath();
+                p.polygons.forEach(poly => {
+                    ctx.moveTo(poly[0][0], poly[0][1]);
+                    for (let i = 1; i < poly.length; i++) {
+                        ctx.lineTo(poly[i][0], poly[i][1]);
+                    }
+                    ctx.closePath();
+                });
                 ctx.fillStyle = CONFIG.colors.selected;
-            } else {
-                ctx.fillStyle = countries[p.owner].color;
-            }
-            
-            ctx.fill();
-            
-            ctx.strokeStyle = CONFIG.colors.border;
-            ctx.lineWidth = 0.5 / this.camera.zoom;
-            if (p.id === this.selectedProvId) {
+                ctx.fill();
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 2 / this.camera.zoom;
+                ctx.stroke();
             }
-            ctx.stroke();
-
-            // Draw buildings at centroid
-            ctx.save();
-            ctx.translate(p.center.x, p.center.y);
-            ctx.scale(1, -1);
-            const textScale = 1 / this.camera.zoom;
-            ctx.scale(textScale, textScale);
-            
-            if (p.buildings.factory > 0) {
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.font = '10px Arial';
-                ctx.fillText("⚙", -5, 0);
-            }
-            if (p.buildings.fort > 0) {
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.font = '10px Arial';
-                ctx.fillText("♜", 5, 0);
-            }
-            ctx.restore();
-        });
+        }
         
         // Draw armies as dots on the map
         armies.forEach(army => {
