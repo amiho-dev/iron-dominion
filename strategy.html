@@ -373,6 +373,8 @@ const CONFIG = {
 // --- WORLD DATA ---
 let countries = {};
 let provinces = [];
+let provincesById = {};
+const getProvince = (id) => provincesById[id];
 let game = null;
 let cachedMapCanvas = null; // Pre-rendered map for performance
 
@@ -412,8 +414,8 @@ class Army {
     }
     
     moveToProvince(targetId) {
-        const currentProv = provinces.find(p => p.id === this.provinceId);
-        const targetProv = provinces.find(p => p.id === targetId);
+        const currentProv = getProvince(this.provinceId);
+        const targetProv = getProvince(targetId);
         
         if (!currentProv || !targetProv) return false;
         
@@ -485,6 +487,15 @@ class Province {
         } else if (feature.geometry.type === 'MultiPolygon') {
             feature.geometry.coordinates.forEach(poly => this.polygons.push(poly[0]));
         }
+        // Prebuild path for fast drawing
+        this.path = new Path2D();
+        this.polygons.forEach(poly => {
+            this.path.moveTo(poly[0][0], poly[0][1]);
+            for (let i = 1; i < poly.length; i++) {
+                this.path.lineTo(poly[i][0], poly[i][1]);
+            }
+            this.path.closePath();
+        });
         
         this.center = this.calculateCentroid();
         this.bounds = this.calculateBounds();
@@ -741,6 +752,7 @@ function createProvince(id, feature, ownerId) {
     p.owner = ownerId;
     p.name = name;
     provinces.push(p);
+    provincesById[p.id] = p;
 }
 
 const REGION_NAMES = ["Region", "Sector", "Zone", "District", "Area", "Territory", "Province", "State"];
@@ -1221,7 +1233,7 @@ game = {
         }
         
         if (this.attackMode && this.selectedProvId !== null) {
-            const source = provinces.find(p => p.id === this.selectedProvId);
+            const source = getProvince(this.selectedProvId);
             if (source.neighbors.includes(clicked.id)) {
                 this.resolveCombat(source, clicked);
                 this.attackMode = false;
@@ -1372,13 +1384,13 @@ game = {
         },
         openArmyDesigner: function() {
             if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const p = getProvince(game.selectedProvId);
             if (p.owner !== game.playerCountry) return;
             game.armyDesigner.open(p.id);
         },
         moveArmyMode: function() {
             if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            const p = getProvince(game.selectedProvId);
             if (!p || p.owner !== game.playerCountry) return;
             if (p.armies.length === 0) {
                 game.log("No armies to move!", "info");
@@ -1446,7 +1458,7 @@ game = {
         deploy: function() {
             if (this.currentProvinceId === null) return;
             
-            const prov = provinces.find(p => p.id === this.currentProvinceId);
+            const prov = getProvince(this.currentProvinceId);
             if (!prov || prov.owner !== game.playerCountry) return;
             
             let totalCost = 0;
@@ -1546,7 +1558,7 @@ game = {
 
         const provPanel = document.getElementById('province-panel');
         if (this.selectedProvId !== null) {
-            const prov = provinces.find(pr => pr.id === this.selectedProvId);
+            const prov = getProvince(this.selectedProvId);
             provPanel.style.display = 'block';
             document.getElementById('prov-id').innerText = `#${prov.id}`;
             document.getElementById('prov-name').innerText = prov.name;
@@ -1669,27 +1681,19 @@ game = {
 
         // Highlight selected province overlay only
         if (this.selectedProvId !== null) {
-            const p = provinces.find(prov => prov.id === this.selectedProvId);
+            const p = getProvince(this.selectedProvId);
             if (p) {
-                ctx.beginPath();
-                p.polygons.forEach(poly => {
-                    ctx.moveTo(poly[0][0], poly[0][1]);
-                    for (let i = 1; i < poly.length; i++) {
-                        ctx.lineTo(poly[i][0], poly[i][1]);
-                    }
-                    ctx.closePath();
-                });
                 ctx.fillStyle = CONFIG.colors.selected;
-                ctx.fill();
+                ctx.fill(p.path);
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 1.5 / this.camera.zoom;
-                ctx.stroke();
+                ctx.stroke(p.path);
             }
         }
         
         // Draw armies as dots on the map
         armies.forEach(army => {
-            const prov = provinces.find(p => p.id === army.provinceId);
+            const prov = getProvince(army.provinceId);
             if (!prov) return;
             
             // Culling check
