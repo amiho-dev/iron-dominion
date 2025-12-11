@@ -403,6 +403,11 @@ const MAJOR_NATIONS = {
     "MEX": { color: "#88aa44", name: "Mexico" }
 };
 
+// Microstates remain single-tile; all others should use real admin-1 provinces where available.
+const MICROSTATE_COUNTRIES = new Set([
+    "LIE", "MCO", "SMR", "VAT", "AND", "SGP", "BRN", "MUS"
+]);
+
 async function generateWorldMap() {
     provinces = [];
     countries = {};
@@ -452,6 +457,7 @@ async function generateWorldMap() {
         
         let provIndex = 0;
         const countriesWithProvinces = new Set();
+        const missingProvinceCountries = [];
         
         // Process real provinces
         if (provData && provData.features) {
@@ -472,14 +478,19 @@ async function generateWorldMap() {
             }
         }
 
-        // 3. Fallback for countries without provinces (or if province file missing)
+        // 3. Fallback for countries without provinces (keep microstates single-tile)
         loadingText.innerText = "Generating national territories...";
         for (let feature of worldData.features) {
             if (!countriesWithProvinces.has(feature.id)) {
-                // Use the country geometry itself as a single province
-                // This ensures every country appears on the map
+                if (!MICROSTATE_COUNTRIES.has(feature.id)) {
+                    missingProvinceCountries.push(feature.id);
+                }
                 createProvince(provIndex++, feature, feature.id);
             }
+        }
+
+        if (missingProvinceCountries.length > 0) {
+            console.warn("Countries missing province data; using single-tile fallback:", missingProvinceCountries.join(", "));
         }
 
         // Calculate neighbors
@@ -543,6 +554,8 @@ game = {
     timer: null,
     playerCountry: null,
     camera: { x: 0, y: 0, zoom: 4, isDragging: false, lastX: 0, lastY: 0 },
+    keyState: new Set(),
+    keyPanSpeed: 40,
 
     init: async function() {
         this.canvas = document.getElementById('gameCanvas');
@@ -572,6 +585,9 @@ game = {
         this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
         this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
+        window.addEventListener('keydown', this.handleKeyDown.bind(this));
+        window.addEventListener('keyup', this.handleKeyUp.bind(this));
+        this.startKeyLoop();
         
         window.addEventListener('resize', () => {
             this.canvas.width = mapArea.clientWidth;
@@ -582,6 +598,28 @@ game = {
         if (!this.playerCountry) {
             this.log("Waiting for commander selection...", "info");
         }
+    },
+
+    startKeyLoop: function() {
+        const loop = () => {
+            if (this.keyState.size > 0) {
+                let moved = false;
+                const step = this.keyPanSpeed;
+                if (this.keyState.has('arrowleft') || this.keyState.has('a')) { this.camera.x += step; moved = true; }
+                if (this.keyState.has('arrowright') || this.keyState.has('d')) { this.camera.x -= step; moved = true; }
+                if (this.keyState.has('arrowup') || this.keyState.has('w')) { this.camera.y += step; moved = true; }
+                if (this.keyState.has('arrowdown') || this.keyState.has('s')) { this.camera.y -= step; moved = true; }
+                if (moved && !this.renderPending) {
+                    this.renderPending = true;
+                    requestAnimationFrame(() => {
+                        this.render();
+                        this.renderPending = false;
+                    });
+                }
+            }
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
     },
 
     initSetup: function() {
@@ -893,26 +931,23 @@ game = {
         e.preventDefault();
         const zoomSensitivity = 0.001;
         const delta = -e.deltaY * zoomSensitivity;
-        const newZoom = Math.min(Math.max(this.camera.zoom + delta * this.camera.zoom, 1), 50);
-        
-        // Zoom towards mouse pointer
+        const factor = 1 + delta;
+        this.adjustZoom(factor, e.clientX, e.clientY);
+    },
+
+    adjustZoom: function(factor, clientX = null, clientY = null) {
+        const newZoom = Math.min(Math.max(this.camera.zoom * factor, 1), 50);
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        // Calculate world coordinates before zoom
+        const mouseX = clientX === null ? this.canvas.width / 2 : clientX - rect.left;
+        const mouseY = clientY === null ? this.canvas.height / 2 : clientY - rect.top;
+
         const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
         const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
-        
-        // Adjust camera to keep world point under mouse
-        // NewCamX = MouseX - (WorldX * NewZ + W/2)
+
         this.camera.x = mouseX - (worldX * newZoom + this.canvas.width/2);
-        
-        // NewCamY = MouseY - (WorldY * -NewZ + H/2)
         this.camera.y = mouseY - (worldY * -newZoom + this.canvas.height/2);
-        
         this.camera.zoom = newZoom;
-        
+
         if (!this.renderPending) {
             this.renderPending = true;
             requestAnimationFrame(() => {
@@ -920,6 +955,25 @@ game = {
                 this.renderPending = false;
             });
         }
+    },
+
+    handleKeyDown: function(e) {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+        const k = e.key.toLowerCase();
+        if (k === ' ') { e.preventDefault(); this.togglePause(); return; }
+        if (k === 'escape') { this.attackMode = false; this.selectedProvId = null; this.updateUI(); this.render(); return; }
+        if (k === 'enter') { this.attackMode = !this.attackMode; this.updateUI(); this.render(); return; }
+        if (k === '+' || k === '=' || k === 'add') { this.adjustZoom(1.1); return; }
+        if (k === '-' || k === '_' || k === 'subtract') { this.adjustZoom(1/1.1); return; }
+
+        this.keyState.add(k);
+    },
+
+    handleKeyUp: function(e) {
+        const k = e.key.toLowerCase();
+        this.keyState.delete(k);
     },
 
     handleProvinceClick: function(clicked) {
