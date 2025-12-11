@@ -696,9 +696,8 @@ function preRenderMap() {
         
         const worldWidth = maxX - minX;
         const worldHeight = maxY - minY;
-        // Balance quality and memory: scale tied to device pixel ratio
-        const dpi = window.devicePixelRatio || 1;
-        const scale = Math.min(12, Math.max(6, Math.ceil(dpi * 4)));
+        // Target ~720p+ crispness without giant canvases
+        const scale = 8;
         
         cachedMapCanvas = document.createElement('canvas');
         cachedMapCanvas.width = worldWidth * scale;
