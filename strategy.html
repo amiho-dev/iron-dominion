@@ -682,10 +682,13 @@ async function generateWorldMap() {
 }
 
 // --- TILE-BASED MAP CACHE FOR HIGH RESOLUTION ---
-const TILE_SIZE = 512; // pixels per tile
-const MAP_SCALE = 20;  // High resolution: 20 pixels per degree (7200x3600 total)
-let mapTiles = {};     // Cache of rendered tiles
+const TILE_SIZE = 256;            // pixels per tile (smaller tiles, less RAM per tile)
+const MAP_SCALE = 12;             // resolution scale (pixels per world degree-ish)
+let TILE_CACHE_LIMIT = 128;       // will be resized to total tiles after init
+let mapTiles = new Map();         // LRU cache of rendered tiles
 let worldBounds = null;
+let maxTX = 0;
+let maxTY = 0;
 
 function initWorldBounds() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -696,16 +699,36 @@ function initWorldBounds() {
         if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
     });
     worldBounds = { minX, minY, maxX, maxY };
-    console.log(`World bounds: ${minX},${minY} to ${maxX},${maxY}`);
+    const tileWorldSize = TILE_SIZE / MAP_SCALE;
+    maxTX = Math.ceil((worldBounds.maxX - worldBounds.minX) / tileWorldSize);
+    maxTY = Math.ceil((worldBounds.maxY - worldBounds.minY) / tileWorldSize);
+    // Cache limit sized to full coverage
+    TILE_CACHE_LIMIT = maxTX * maxTY;
+    console.log(`World bounds: ${minX},${minY} to ${maxX},${maxY} | tiles ${maxTX}x${maxTY} (limit ${TILE_CACHE_LIMIT})`);
 }
 
 function getTileKey(tx, ty) {
     return `${tx},${ty}`;
 }
 
+function touchTile(key, tile) {
+    // LRU: reinsert to mark as recent
+    if (mapTiles.has(key)) mapTiles.delete(key);
+    mapTiles.set(key, tile);
+    if (mapTiles.size > TILE_CACHE_LIMIT) {
+        // delete oldest
+        const oldestKey = mapTiles.keys().next().value;
+        mapTiles.delete(oldestKey);
+    }
+}
+
 function renderTile(tx, ty) {
     const key = getTileKey(tx, ty);
-    if (mapTiles[key]) return mapTiles[key];
+    if (mapTiles.has(key)) {
+        const t = mapTiles.get(key);
+        touchTile(key, t);
+        return t;
+    }
     
     const tile = document.createElement('canvas');
     tile.width = TILE_SIZE;
@@ -724,11 +747,13 @@ function renderTile(tx, ty) {
     ctx.translate(-tileWorldX, -tileWorldY - tileWorldHeight);
     
     // Draw only provinces that intersect this tile
-    provinces.forEach(p => {
+    const len = provinces.length;
+    for (let i = 0; i < len; i++) {
+        const p = provinces[i];
         // Quick bounds check
         if (p.bounds.maxX < tileWorldX || p.bounds.minX > tileWorldX + tileWorldWidth ||
             p.bounds.maxY < tileWorldY || p.bounds.minY > tileWorldY + tileWorldHeight) {
-            return;
+            continue;
         }
         
         ctx.fillStyle = countries[p.owner].color;
@@ -736,23 +761,23 @@ function renderTile(tx, ty) {
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 0.15;
         ctx.stroke(p.path);
-    });
+    }
     
     ctx.restore();
-    mapTiles[key] = tile;
+    touchTile(key, tile);
     return tile;
 }
 
 function preRenderMap() {
     initWorldBounds();
     // Clear tile cache - tiles render on demand
-    mapTiles = {};
-    console.log(`Tile system ready: ${MAP_SCALE}x scale, ${TILE_SIZE}px tiles`);
+    mapTiles = new Map();
+    console.log(`Tile system ready: ${MAP_SCALE}x scale, ${TILE_SIZE}px tiles, limit ${TILE_CACHE_LIMIT}`);
 }
 
 // Invalidate and re-render the cached map (call when ownership changes)
 function invalidateMapCache() {
-    mapTiles = {}; // Clear all tiles - they'll re-render on demand
+    mapTiles = new Map(); // Clear all tiles - they'll re-render on demand
 }
 
 function createProvince(id, feature, ownerId) {
@@ -1686,9 +1711,9 @@ game = {
             // Calculate which tiles are visible
             const tileWorldSize = TILE_SIZE / MAP_SCALE;
             const startTX = Math.max(0, Math.floor((minWorldX - worldBounds.minX) / tileWorldSize));
-            const endTX = Math.ceil((maxWorldX - worldBounds.minX) / tileWorldSize);
+            const endTX = Math.min(maxTX, Math.ceil((maxWorldX - worldBounds.minX) / tileWorldSize));
             const startTY = Math.max(0, Math.floor((minWorldY - worldBounds.minY) / tileWorldSize));
-            const endTY = Math.ceil((maxWorldY - worldBounds.minY) / tileWorldSize);
+            const endTY = Math.min(maxTY, Math.ceil((maxWorldY - worldBounds.minY) / tileWorldSize));
             
             // Draw only visible tiles
             for (let ty = startTY; ty <= endTY; ty++) {
