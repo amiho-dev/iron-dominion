@@ -211,6 +211,7 @@
     <div id="top-bar">
         <div class="top-section">
             <div style="font-weight: bold; color: var(--accent-color); margin-right: 15px;">IRON DOMINION</div>
+            <div id="player-username" style="color: #88ccff; font-size: 0.9em; margin-right: 10px;">Commander</div>
             <div id="player-country-display" style="font-weight: bold; color: #fff; border: 1px solid #444; padding: 5px 10px; background: #222;">-</div>
         </div>
 
@@ -248,10 +249,12 @@
             <div style="margin-bottom: 15px;">
                 <div class="stat-row"><span>Owner:</span> <span id="prov-owner">-</span></div>
                 <div class="stat-row"><span>Garrison:</span> <span id="prov-army" style="color: #aaa;">0</span></div>
+                <div class="stat-row"><span>Armies:</span> <span id="prov-armies" style="color: #aaa;">0</span></div>
                 <div class="stat-row"><span>Fortification:</span> <span id="prov-defense" style="color: #aaa;">0%</span></div>
             </div>
 
             <div id="owner-actions">
+                <button class="btn btn-block" onclick="game.actions.openArmyDesigner()">🎖️ Army Designer</button>
                 <button class="btn btn-block" onclick="game.actions.recruit()">Recruit (+50 Army) <span style="float:right; color:#888">100MP</span></button>
                 <button class="btn btn-block" onclick="game.actions.build('factory')">Build Factory <span style="float:right; color:#888">500MP</span></button>
                 <button class="btn btn-block" onclick="game.actions.build('fort')">Build Fort <span style="float:right; color:#888">300MP</span></button>
@@ -267,6 +270,48 @@
                     <button class="btn btn-block btn-danger" id="btn-declare-war" onclick="game.diplomacy.declareWar()">DECLARE WAR</button>
                 </div>
                 <button class="btn btn-block" style="background: #442222; margin-top: 10px;" onclick="game.actions.cheatAnnex()">⚠ FORCE ANNEX</button>
+            </div>
+        </div>
+
+        <!-- ARMY DESIGNER MODAL -->
+        <div id="army-designer-modal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 500px; text-align: left;">
+                <h2 style="text-align: center;">⚔️ ARMY DESIGNER</h2>
+                <p style="text-align: center; font-size: 0.9em;">Configure and deploy a new army to the selected province.</p>
+                
+                <div id="army-unit-selector" style="margin: 20px 0;">
+                    <div class="stat-row" style="margin-bottom: 10px;">
+                        <span>🚶 Infantry</span>
+                        <span><button class="btn" onclick="game.armyDesigner.adjust('infantry', -1)">-</button> <span id="unit-infantry-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('infantry', 1)">+</button></span>
+                    </div>
+                    <div class="stat-row" style="margin-bottom: 10px;">
+                        <span>🛡️ Tanks</span>
+                        <span><button class="btn" onclick="game.armyDesigner.adjust('tanks', -1)">-</button> <span id="unit-tanks-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('tanks', 1)">+</button></span>
+                    </div>
+                    <div class="stat-row" style="margin-bottom: 10px;">
+                        <span>💥 Artillery</span>
+                        <span><button class="btn" onclick="game.armyDesigner.adjust('artillery', -1)">-</button> <span id="unit-artillery-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('artillery', 1)">+</button></span>
+                    </div>
+                    <div class="stat-row" style="margin-bottom: 10px;">
+                        <span>🎯 Anti-Air</span>
+                        <span><button class="btn" onclick="game.armyDesigner.adjust('antiAir', -1)">-</button> <span id="unit-antiAir-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('antiAir', 1)">+</button></span>
+                    </div>
+                    <div class="stat-row" style="margin-bottom: 10px;">
+                        <span>🔫 Anti-Tank</span>
+                        <span><button class="btn" onclick="game.armyDesigner.adjust('antiTank', -1)">-</button> <span id="unit-antiTank-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('antiTank', 1)">+</button></span>
+                    </div>
+                </div>
+                
+                <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 15px;">
+                    <div class="stat-row"><span>Total Units:</span> <span id="army-total-units">0</span></div>
+                    <div class="stat-row"><span>Army Strength:</span> <span id="army-strength-preview">0</span></div>
+                    <div class="stat-row"><span>Total Cost:</span> <span id="army-total-cost" style="color: var(--accent-color);">0 MP</span></div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button id="deploy-army-btn" class="btn btn-block" onclick="game.armyDesigner.deploy()">🚀 DEPLOY ARMY</button>
+                    <button class="btn btn-block" onclick="game.armyDesigner.close()">CANCEL</button>
+                </div>
             </div>
         </div>
 
@@ -327,6 +372,44 @@ const CONFIG = {
 let countries = {};
 let provinces = [];
 let game = null;
+let cachedMapCanvas = null; // Pre-rendered map for performance
+
+// Army unit templates
+const UNIT_TYPES = {
+    infantry: { name: 'Infantry', icon: '🚶', attack: 10, defense: 15, cost: 100 },
+    tanks: { name: 'Tanks', icon: '🛡️', attack: 30, defense: 10, cost: 300 },
+    artillery: { name: 'Artillery', icon: '💥', attack: 40, defense: 5, cost: 250 },
+    antiAir: { name: 'Anti-Air', icon: '🎯', attack: 15, defense: 20, cost: 200 },
+    antiTank: { name: 'Anti-Tank', icon: '🔫', attack: 25, defense: 12, cost: 220 }
+};
+
+// Army class for deployed units
+class Army {
+    constructor(id, ownerId, provinceId, composition) {
+        this.id = id;
+        this.owner = ownerId;
+        this.provinceId = provinceId;
+        this.composition = composition; // { infantry: 5, tanks: 2, ... }
+        this.strength = this.calculateStrength();
+    }
+    
+    calculateStrength() {
+        let str = 0;
+        for (const [type, count] of Object.entries(this.composition)) {
+            if (UNIT_TYPES[type]) {
+                str += (UNIT_TYPES[type].attack + UNIT_TYPES[type].defense) * count;
+            }
+        }
+        return str;
+    }
+    
+    getTotalUnits() {
+        return Object.values(this.composition).reduce((a, b) => a + b, 0);
+    }
+}
+
+let armies = []; // Global armies array
+let nextArmyId = 1;
 
 // --- GENERATION ---
 
@@ -338,6 +421,7 @@ class Province {
         this.name = "Province";
         this.army = 50 + Math.floor(Math.random() * 100);
         this.buildings = { factory: 0, fort: 0 };
+        this.armies = []; // Array of deployed army units
         this.neighbors = [];
         
         // Calculate centroid and bounds
@@ -422,7 +506,11 @@ async function generateWorldMap() {
         
         // Process countries
         for (let feature of worldData.features) {
-            let color = `hsl(${Math.random() * 360}, 60%, 40%)`;
+            // Full RGB random color with decent saturation and brightness
+            const r = Math.floor(Math.random() * 180) + 40;
+            const g = Math.floor(Math.random() * 180) + 40;
+            const b = Math.floor(Math.random() * 180) + 40;
+            let color = `rgb(${r}, ${g}, ${b})`;
             let name = feature.properties.name;
             
             if (MAJOR_NATIONS[feature.id]) {
@@ -515,12 +603,66 @@ async function generateWorldMap() {
         });
         
         console.log(`Generated ${provinces.length} provinces.`);
+        
+        // Pre-render map to cached canvas for performance
+        loadingText.innerText = "Pre-rendering map...";
+        await new Promise(r => setTimeout(r, 10));
+        preRenderMap();
+        
         document.getElementById('loading-overlay').style.display = 'none';
         
     } catch (e) {
         console.error("Failed to load map data", e);
         document.getElementById('loading-text').innerText = "Error loading map data: " + e.message;
     }
+}
+
+// Pre-render the entire map to an offscreen canvas
+function preRenderMap() {
+    // Calculate world bounds
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    provinces.forEach(p => {
+        if (p.bounds.minX < minX) minX = p.bounds.minX;
+        if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
+        if (p.bounds.minY < minY) minY = p.bounds.minY;
+        if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
+    });
+    
+    const worldWidth = maxX - minX;
+    const worldHeight = maxY - minY;
+    const scale = 4; // Base resolution scale
+    
+    cachedMapCanvas = document.createElement('canvas');
+    cachedMapCanvas.width = worldWidth * scale;
+    cachedMapCanvas.height = worldHeight * scale;
+    cachedMapCanvas.worldBounds = { minX, minY, maxX, maxY, scale };
+    
+    const ctx = cachedMapCanvas.getContext('2d');
+    ctx.save();
+    ctx.scale(scale, scale);
+    ctx.translate(-minX, -minY);
+    ctx.scale(1, -1);
+    ctx.translate(0, -(maxY + minY));
+    
+    // Draw all provinces
+    provinces.forEach(p => {
+        ctx.beginPath();
+        p.polygons.forEach(poly => {
+            ctx.moveTo(poly[0][0], poly[0][1]);
+            for (let i = 1; i < poly.length; i++) {
+                ctx.lineTo(poly[i][0], poly[i][1]);
+            }
+            ctx.closePath();
+        });
+        ctx.fillStyle = countries[p.owner].color;
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+    });
+    
+    ctx.restore();
+    console.log(`Pre-rendered map: ${cachedMapCanvas.width}x${cachedMapCanvas.height}`);
 }
 
 function createProvince(id, feature, ownerId) {
@@ -564,6 +706,22 @@ game = {
         const mapArea = document.getElementById('map-area');
         this.canvas.width = mapArea.clientWidth;
         this.canvas.height = mapArea.clientHeight;
+        
+        // Fetch username from MyTAD API
+        try {
+            const response = await fetch('/php/check-auth.php', { credentials: 'include' });
+            const data = await response.json();
+            if (data.authenticated && data.username) {
+                this.playerUsername = data.username;
+                document.getElementById('player-username').innerText = data.username;
+            } else {
+                this.playerUsername = 'Commander';
+                document.getElementById('player-username').innerText = 'Commander';
+            }
+        } catch (e) {
+            this.playerUsername = 'Commander';
+            document.getElementById('player-username').innerText = 'Commander';
+        }
         
         await generateWorldMap();
         
@@ -1124,6 +1282,106 @@ game = {
             game.log(`CHEAT: Annexed ${p.name} from ${countries[oldOwner].name}`, "war");
             game.updateUI();
             game.render();
+        },
+        openArmyDesigner: function() {
+            if (game.selectedProvId === null) return;
+            const p = provinces.find(prov => prov.id === game.selectedProvId);
+            if (p.owner !== game.playerCountry) return;
+            game.armyDesigner.open(p.id);
+        }
+    },
+    
+    armyDesigner: {
+        currentProvinceId: null,
+        composition: { infantry: 10, tanks: 0, artillery: 0, antiAir: 0, antiTank: 0 },
+        
+        open: function(provinceId) {
+            this.currentProvinceId = provinceId;
+            this.composition = { infantry: 10, tanks: 0, artillery: 0, antiAir: 0, antiTank: 0 };
+            this.updateUI();
+            document.getElementById('army-designer-modal').style.display = 'flex';
+        },
+        
+        close: function() {
+            document.getElementById('army-designer-modal').style.display = 'none';
+            this.currentProvinceId = null;
+        },
+        
+        adjust: function(unitType, delta) {
+            const current = this.composition[unitType] || 0;
+            this.composition[unitType] = Math.max(0, current + delta);
+            this.updateUI();
+        },
+        
+        updateUI: function() {
+            let totalCost = 0;
+            let totalStrength = 0;
+            
+            Object.keys(this.composition).forEach(type => {
+                const count = this.composition[type];
+                const unit = UNIT_TYPES[type];
+                if (unit && count > 0) {
+                    totalCost += count * unit.cost;
+                    totalStrength += count * (unit.attack + unit.defense);
+                }
+                
+                const countEl = document.getElementById(`unit-${type}-count`);
+                if (countEl) countEl.innerText = count;
+            });
+            
+            document.getElementById('army-total-cost').innerText = totalCost;
+            document.getElementById('army-strength-preview').innerText = totalStrength;
+            
+            const playerCountry = countries[game.playerCountry];
+            const deployBtn = document.getElementById('deploy-army-btn');
+            if (playerCountry && totalCost > playerCountry.manpower) {
+                deployBtn.disabled = true;
+                deployBtn.style.opacity = '0.5';
+            } else {
+                deployBtn.disabled = false;
+                deployBtn.style.opacity = '1';
+            }
+        },
+        
+        deploy: function() {
+            if (this.currentProvinceId === null) return;
+            
+            const prov = provinces.find(p => p.id === this.currentProvinceId);
+            if (!prov || prov.owner !== game.playerCountry) return;
+            
+            let totalCost = 0;
+            let totalUnits = 0;
+            Object.keys(this.composition).forEach(type => {
+                const count = this.composition[type];
+                if (UNIT_TYPES[type] && count > 0) {
+                    totalCost += count * UNIT_TYPES[type].cost;
+                    totalUnits += count;
+                }
+            });
+            
+            if (totalUnits === 0) {
+                game.log("Cannot deploy empty army!", "info");
+                return;
+            }
+            
+            const playerCountry = countries[game.playerCountry];
+            if (totalCost > playerCountry.manpower) {
+                game.log("Not enough manpower!", "info");
+                return;
+            }
+            
+            // Deduct cost
+            playerCountry.manpower -= totalCost;
+            
+            // Create army
+            const army = new Army(nextArmyId++, game.playerCountry, this.currentProvinceId, {...this.composition});
+            armies.push(army);
+            prov.armies.push(army.id);
+            
+            game.log(`Deployed army (${totalUnits} units) to ${prov.name}`, "info");
+            this.close();
+            game.updateUI();
+            game.render();
         }
     },
 
@@ -1199,6 +1457,7 @@ game = {
             
             document.getElementById('prov-army').innerText = Math.floor(prov.army);
             document.getElementById('prov-defense').innerText = (prov.buildings.fort * 20) + "%";
+            document.getElementById('prov-armies').innerText = prov.armies.length;
 
             const isMine = prov.owner === this.playerCountry;
             document.getElementById('owner-actions').style.display = isMine ? 'block' : 'none';
@@ -1265,18 +1524,12 @@ game = {
         ctx.scale(1, -1);
 
         // Calculate Viewport Bounds in World Coordinates
-        // We need to know what part of the world is currently visible to cull invisible provinces
-        // Screen: (0,0) to (width, height)
-        // Inverse Transform:
-        // worldX = (screenX - camera.x - width/2) / zoom
-        // worldY = -(screenY - camera.y - height/2) / zoom
-        
         const minWorldX = (0 - this.camera.x - this.canvas.width/2) / this.camera.zoom;
         const maxWorldX = (this.canvas.width - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        // Y is flipped, so min screen Y is max world Y
         const maxWorldY = -(0 - this.camera.y - this.canvas.height/2) / this.camera.zoom;
         const minWorldY = -(this.canvas.height - this.camera.y - this.canvas.height/2) / this.camera.zoom;
 
+        // Draw provinces (with selection highlight)
         provinces.forEach(p => {
             // Culling Check
             if (p.bounds.maxX < minWorldX || p.bounds.minX > maxWorldX ||
@@ -1299,9 +1552,6 @@ game = {
                 ctx.fillStyle = countries[p.owner].color;
             }
             
-            // Removed shadow for performance
-            // ctx.shadowColor = 'rgba(0,0,0,0.5)'; ...
-            
             ctx.fill();
             
             ctx.strokeStyle = CONFIG.colors.border;
@@ -1312,11 +1562,10 @@ game = {
             }
             ctx.stroke();
 
-            // Draw army/buildings at centroid
-            // Scale text inverse to zoom so it stays readable
+            // Draw buildings at centroid
             ctx.save();
             ctx.translate(p.center.x, p.center.y);
-            ctx.scale(1, -1); // Flip back for text
+            ctx.scale(1, -1);
             const textScale = 1 / this.camera.zoom;
             ctx.scale(textScale, textScale);
             
@@ -1330,6 +1579,44 @@ game = {
                 ctx.font = '10px Arial';
                 ctx.fillText("♜", 5, 0);
             }
+            ctx.restore();
+        });
+        
+        // Draw armies as dots on the map
+        armies.forEach(army => {
+            const prov = provinces.find(p => p.id === army.provinceId);
+            if (!prov) return;
+            
+            // Culling check
+            if (prov.bounds.maxX < minWorldX || prov.bounds.minX > maxWorldX ||
+                prov.bounds.maxY < minWorldY || prov.bounds.minY > maxWorldY) {
+                return;
+            }
+            
+            ctx.save();
+            ctx.translate(prov.center.x, prov.center.y);
+            
+            // Draw army dot
+            const dotSize = Math.max(2, Math.min(8, army.getTotalUnits() / 5)) / this.camera.zoom;
+            const ownerColor = countries[army.owner] ? countries[army.owner].color : '#fff';
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, dotSize, 0, Math.PI * 2);
+            ctx.fillStyle = ownerColor;
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1 / this.camera.zoom;
+            ctx.stroke();
+            
+            // Draw unit count
+            ctx.scale(1, -1);
+            const textScale = 1 / this.camera.zoom;
+            ctx.scale(textScale, textScale);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 8px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(army.getTotalUnits().toString(), 0, -dotSize * this.camera.zoom - 3);
+            
             ctx.restore();
         });
         
