@@ -376,7 +376,6 @@ let provinces = [];
 let provincesById = {};
 const getProvince = (id) => provincesById[id];
 let game = null;
-let cachedMapCanvas = null; // Pre-rendered map for performance
 
 // Army unit templates
 const UNIT_TYPES = {
@@ -682,65 +681,78 @@ async function generateWorldMap() {
     }
 }
 
-// Pre-render the entire map to an offscreen canvas
-function preRenderMap() {
-    // Calculate world bounds (cache these for reuse)
-    if (!cachedMapCanvas || !cachedMapCanvas.worldBounds) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        provinces.forEach(p => {
-            if (p.bounds.minX < minX) minX = p.bounds.minX;
-            if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
-            if (p.bounds.minY < minY) minY = p.bounds.minY;
-            if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
-        });
-        
-        const worldWidth = maxX - minX;
-        const worldHeight = maxY - minY;
-        // Target ~720p+ crispness without giant canvases
-        const scale = 8;
-        
-        cachedMapCanvas = document.createElement('canvas');
-        cachedMapCanvas.width = worldWidth * scale;
-        cachedMapCanvas.height = worldHeight * scale;
-        cachedMapCanvas.worldBounds = { minX, minY, maxX, maxY, scale, worldWidth, worldHeight };
-    }
-    
-    const wb = cachedMapCanvas.worldBounds;
-    const ctx = cachedMapCanvas.getContext('2d');
-    
-    ctx.clearRect(0, 0, cachedMapCanvas.width, cachedMapCanvas.height);
-    ctx.save();
-    ctx.scale(wb.scale, wb.scale);
-    ctx.translate(-wb.minX, -wb.minY);
-    ctx.scale(1, -1);
-    ctx.translate(0, -(wb.maxY + wb.minY));
-    
-    // Draw all provinces
+// --- TILE-BASED MAP CACHE FOR HIGH RESOLUTION ---
+const TILE_SIZE = 512; // pixels per tile
+const MAP_SCALE = 20;  // High resolution: 20 pixels per degree (7200x3600 total)
+let mapTiles = {};     // Cache of rendered tiles
+let worldBounds = null;
+
+function initWorldBounds() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     provinces.forEach(p => {
-        ctx.beginPath();
-        p.polygons.forEach(poly => {
-            ctx.moveTo(poly[0][0], poly[0][1]);
-            for (let i = 1; i < poly.length; i++) {
-                ctx.lineTo(poly[i][0], poly[i][1]);
-            }
-            ctx.closePath();
-        });
+        if (p.bounds.minX < minX) minX = p.bounds.minX;
+        if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
+        if (p.bounds.minY < minY) minY = p.bounds.minY;
+        if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
+    });
+    worldBounds = { minX, minY, maxX, maxY };
+    console.log(`World bounds: ${minX},${minY} to ${maxX},${maxY}`);
+}
+
+function getTileKey(tx, ty) {
+    return `${tx},${ty}`;
+}
+
+function renderTile(tx, ty) {
+    const key = getTileKey(tx, ty);
+    if (mapTiles[key]) return mapTiles[key];
+    
+    const tile = document.createElement('canvas');
+    tile.width = TILE_SIZE;
+    tile.height = TILE_SIZE;
+    const ctx = tile.getContext('2d');
+    
+    // Calculate world coordinates for this tile
+    const tileWorldX = worldBounds.minX + (tx * TILE_SIZE) / MAP_SCALE;
+    const tileWorldY = worldBounds.minY + (ty * TILE_SIZE) / MAP_SCALE;
+    const tileWorldWidth = TILE_SIZE / MAP_SCALE;
+    const tileWorldHeight = TILE_SIZE / MAP_SCALE;
+    
+    // Set up transform: world coords -> tile canvas coords
+    ctx.save();
+    ctx.scale(MAP_SCALE, -MAP_SCALE);
+    ctx.translate(-tileWorldX, -tileWorldY - tileWorldHeight);
+    
+    // Draw only provinces that intersect this tile
+    provinces.forEach(p => {
+        // Quick bounds check
+        if (p.bounds.maxX < tileWorldX || p.bounds.minX > tileWorldX + tileWorldWidth ||
+            p.bounds.maxY < tileWorldY || p.bounds.minY > tileWorldY + tileWorldHeight) {
+            return;
+        }
+        
         ctx.fillStyle = countries[p.owner].color;
-        ctx.fill();
+        ctx.fill(p.path);
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 0.3;
-        ctx.stroke();
+        ctx.lineWidth = 0.15;
+        ctx.stroke(p.path);
     });
     
     ctx.restore();
-    console.log(`Pre-rendered map: ${cachedMapCanvas.width}x${cachedMapCanvas.height}`);
+    mapTiles[key] = tile;
+    return tile;
+}
+
+function preRenderMap() {
+    initWorldBounds();
+    // Clear tile cache - tiles render on demand
+    mapTiles = {};
+    console.log(`Tile system ready: ${MAP_SCALE}x scale, ${TILE_SIZE}px tiles`);
 }
 
 // Invalidate and re-render the cached map (call when ownership changes)
 function invalidateMapCache() {
-    if (cachedMapCanvas) {
-        preRenderMap();
-    }
+    mapTiles = {}; // Clear all tiles - they'll re-render on demand
 }
 
 function createProvince(id, feature, ownerId) {
@@ -1038,14 +1050,12 @@ game = {
         this.camera.isDragging = true;
         this.camera.lastX = e.clientX;
         this.camera.lastY = e.clientY;
+        this.camera.startX = e.clientX;
+        this.camera.startY = e.clientY;
     },
 
     handleMouseMove: function(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        // Panning
+        // Panning - handle first for responsiveness
         if (this.camera.isDragging) {
             const dx = e.clientX - this.camera.lastX;
             const dy = e.clientY - this.camera.lastY;
@@ -1065,7 +1075,15 @@ game = {
             return; // Don't hover while dragging
         }
 
-        // Hover
+        // Throttle hover checks to reduce CPU load
+        const now = performance.now();
+        if (this.lastHoverCheck && now - this.lastHoverCheck < 50) return;
+        this.lastHoverCheck = now;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
         // Convert mouse screen coords to world coords
         const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
         const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
@@ -1074,22 +1092,17 @@ game = {
         
         let hovered = null;
         
-        // Check bounds first, then polygon
-        for (let p of provinces) {
+        // Check bounds first, then polygon - use for loop for speed
+        const len = provinces.length;
+        for (let i = 0; i < len; i++) {
+            const p = provinces[i];
             if (worldX >= p.bounds.minX && worldX <= p.bounds.maxX &&
                 worldY >= p.bounds.minY && worldY <= p.bounds.maxY) {
                 
-                let inside = false;
-                for (let poly of p.polygons) {
-                    if (this.pointInPolygon([worldX, worldY], poly)) {
-                        inside = true;
-                        break;
-                    }
-                }
-                
-                if (inside) {
+                // Use precomputed path with isPointInPath for speed
+                if (this.ctx.isPointInPath(p.path, worldX, worldY)) {
                     hovered = p;
-                    break; // Found the top one (assuming no overlap, or just take first)
+                    break;
                 }
             }
         }
@@ -1113,8 +1126,8 @@ game = {
         this.camera.isDragging = false;
         
         // Check if it was a click (minimal movement)
-        const dx = e.clientX - this.camera.lastX;
-        const dy = e.clientY - this.camera.lastY;
+        const dx = e.clientX - this.camera.startX;
+        const dy = e.clientY - this.camera.startY;
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return; // Was a drag
 
         const rect = this.canvas.getBoundingClientRect();
@@ -1664,17 +1677,32 @@ game = {
         const maxWorldY = -(0 - this.camera.y - this.canvas.height/2) / this.camera.zoom;
         const minWorldY = -(this.canvas.height - this.camera.y - this.canvas.height/2) / this.camera.zoom;
 
-        // Draw cached base map for performance and sharpness
-        if (cachedMapCanvas && cachedMapCanvas.worldBounds) {
-            const wb = cachedMapCanvas.worldBounds;
+        // Draw visible tiles from tile cache
+        if (worldBounds) {
             ctx.save();
             ctx.imageSmoothingEnabled = false;
             ctx.scale(1, -1);
-            ctx.drawImage(
-                cachedMapCanvas,
-                wb.minX, -wb.maxY,
-                (wb.maxX - wb.minX), (wb.maxY - wb.minY)
-            );
+            
+            // Calculate which tiles are visible
+            const tileWorldSize = TILE_SIZE / MAP_SCALE;
+            const startTX = Math.max(0, Math.floor((minWorldX - worldBounds.minX) / tileWorldSize));
+            const endTX = Math.ceil((maxWorldX - worldBounds.minX) / tileWorldSize);
+            const startTY = Math.max(0, Math.floor((minWorldY - worldBounds.minY) / tileWorldSize));
+            const endTY = Math.ceil((maxWorldY - worldBounds.minY) / tileWorldSize);
+            
+            // Draw only visible tiles
+            for (let ty = startTY; ty <= endTY; ty++) {
+                for (let tx = startTX; tx <= endTX; tx++) {
+                    const tile = renderTile(tx, ty);
+                    const worldX = worldBounds.minX + (tx * TILE_SIZE) / MAP_SCALE;
+                    const worldY = worldBounds.minY + (ty * TILE_SIZE) / MAP_SCALE;
+                    ctx.drawImage(
+                        tile,
+                        worldX, -(worldY + tileWorldSize),
+                        tileWorldSize, tileWorldSize
+                    );
+                }
+            }
             ctx.restore();
         }
 
@@ -1691,14 +1719,16 @@ game = {
         }
         
         // Draw armies as dots on the map
-        armies.forEach(army => {
+        const armyLen = armies.length;
+        for (let i = 0; i < armyLen; i++) {
+            const army = armies[i];
             const prov = getProvince(army.provinceId);
-            if (!prov) return;
+            if (!prov) continue;
             
             // Culling check
             if (prov.bounds.maxX < minWorldX || prov.bounds.minX > maxWorldX ||
                 prov.bounds.maxY < minWorldY || prov.bounds.minY > maxWorldY) {
-                return;
+                continue;
             }
             
             ctx.save();
@@ -1724,6 +1754,9 @@ game = {
             ctx.font = 'bold 8px Arial';
             ctx.textAlign = 'center';
             ctx.fillText(army.getTotalUnits().toString(), 0, -dotSize * this.camera.zoom - 3);
+            
+            ctx.restore();
+        }
             
             ctx.restore();
         });
