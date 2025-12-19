@@ -11,110 +11,986 @@
             --panel-border: rgba(255, 255, 255, 0.08);
             --accent: #ffcc4c;
             --accent-soft: #ffd98a;
-            --danger: #ff5b6e;
-            --success: #68f1a4;
-            --muted: #7b8aa1;
-            --text: #eef1ff;
-        }
+            <script>
+            (() => {
+                const CONFIG = {
+                    width: 54,
+                    height: 30,
+                    tile: 24,
+                    tickMs: 950,
+                    workerRatioDefault: 0.45,
+                    defensePostRange: 5,
+                    samRange: 4,
+                    nukeChargePerTick: 0.8,
+                    cityGold: 24,
+                    tradeGold: 55,
+                    warshipRaidChance: 0.18,
+                    neutralCaptureBase: 380,
+                    betrayalWindow: 30,
+                    dominationThreshold: 0.8,
+                    bucketDeg: 6
+                };
 
-        * { box-sizing: border-box; }
+                const TERRAIN = {
+                    water: { name: 'Ocean', baseCost: 1600, defense: 0, color: '#13243c', passable: false },
+                    sand: { name: 'Arid Lowland', baseCost: 540, defense: 0.15, color: '#c8a15a', passable: true },
+                    plains: { name: 'Temperate Plains', baseCost: 620, defense: 0.08, color: '#3f7d4d', passable: true },
+                    hill: { name: 'Highland Plateau', baseCost: 900, defense: 0.18, color: '#39513f', passable: true },
+                    mountain: { name: 'Mountain Belt', baseCost: 1300, defense: 0.38, color: '#5a4838', passable: true }
+                };
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background: radial-gradient(circle at 20% 20%, #0b172b, #020409 65%);
-            color: var(--text);
-            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
-        }
+                const STRUCTURE_COST = {
+                    city: { gold: 600, troops: 0 },
+                    defense: { gold: 350, troops: 300 },
+                    port: { gold: 500, troops: 0 },
+                    sam: { gold: 450, troops: 200 },
+                    silo: { gold: 1000, troops: 0 },
+                    trade: { gold: 300, troops: 0 },
+                    warship: { gold: 400, troops: 200 }
+                };
 
-        #root {
-            padding: 24px clamp(12px, 5vw, 48px);
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
+                const ASSET_PATHS = {
+                    provinces: 'assets/provinces.json'
+                };
 
-        header {
-            background: var(--panel);
-            border: 1px solid var(--panel-border);
-            border-radius: 18px;
-            padding: 18px 24px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 18px;
-            align-items: center;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-        }
+                const canvas = document.getElementById('world');
+                const ctx = canvas.getContext('2d');
+                const overlay = document.getElementById('setup-overlay');
+                const startOptionsBox = document.getElementById('start-options');
+                const confirmBtn = document.getElementById('start-confirm');
+                const nukeBanner = document.getElementById('nuke-banner');
 
-        header h1 {
-            margin: 0;
-            font-size: 1.4rem;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--accent);
-        }
+                const labels = {
+                    day: document.getElementById('day-label'),
+                    pop: document.getElementById('pop-label'),
+                    manpower: document.getElementById('manpower-label'),
+                    gold: document.getElementById('gold-label'),
+                    shield: document.getElementById('shield-label'),
+                    workerPercent: document.getElementById('worker-percent'),
+                    tileCount: document.getElementById('tile-count'),
+                    cityCount: document.getElementById('city-count'),
+                    portCount: document.getElementById('port-count'),
+                    tradeCount: document.getElementById('trade-count'),
+                    warshipCount: document.getElementById('warship-count'),
+                    siloCount: document.getElementById('silo-count'),
+                    nukeCount: document.getElementById('nuke-count'),
+                    tileReadout: document.getElementById('tile-readout'),
+                    navalReadout: document.getElementById('naval-readout'),
+                    log: document.getElementById('intel-log')
+                };
 
-        #status-cluster {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
+                const slider = document.getElementById('worker-slider');
+                const buttons = {
+                    attack: document.getElementById('btn-attack'),
+                    blitz: document.getElementById('btn-blitz'),
+                    city: document.getElementById('btn-city'),
+                    defense: document.getElementById('btn-defense'),
+                    port: document.getElementById('btn-port'),
+                    sam: document.getElementById('btn-sam'),
+                    silo: document.getElementById('btn-silo'),
+                    trade: document.getElementById('btn-trade'),
+                    warship: document.getElementById('btn-warship'),
+                    nuke: document.getElementById('btn-nuke')
+                };
 
-        .stat-card {
-            min-width: 130px;
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.02);
-            font-size: 0.85rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
+                const game = {
+                    map: [],
+                    provincePolygons: [],
+                    provinceBuckets: new Map(),
+                    startingSpots: [],
+                    selectedStart: null,
+                    selectedTile: null,
+                    mode: 'setup',
+                    tickHandle: null,
+                    day: 1,
+                    countries: null,
+                    log: [],
+                    nukeTargeting: false,
 
-        .stat-card strong { display: block; font-size: 1.2rem; color: var(--accent); margin-top: 4px; }
+                    async init() {
+                        canvas.width = CONFIG.width * CONFIG.tile;
+                        canvas.height = CONFIG.height * CONFIG.tile;
+                        this.bindEvents();
+                        this.render();
+                        await this.bootstrap();
+                    },
 
-        #world-wrapper {
-            display: grid;
-            grid-template-columns: minmax(720px, 60vw) 340px;
-            gap: 18px;
-        }
+                    async bootstrap() {
+                        try {
+                            await this.loadProvinceData();
+                            this.generateMap();
+                            this.identifyStartingSpots();
+                            this.renderStartOptions();
+                            this.updatePanels();
+                            this.render();
+                            this.pushLog('Natural Earth projection ready. Select a landing zone.');
+                        } catch (error) {
+                            console.error(error);
+                            this.pushLog('Failed to load real-world map. Serve via HTTP or check assets.', 'danger');
+                            confirmBtn.disabled = true;
+                        }
+                    },
 
-        canvas {
-            width: 100%;
-            height: calc(100vh - 220px);
-            max-height: 760px;
-            border-radius: 18px;
-            border: 1px solid var(--panel-border);
-            background: #050b16;
-            box-shadow: inset 0 0 45px rgba(0,0,0,0.6);
-            cursor: crosshair;
-        }
+                    bindEvents() {
+                        canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+                        slider.addEventListener('input', () => this.handleWorkerRatio());
+                        confirmBtn.addEventListener('click', () => this.confirmStartingSpot());
 
-        aside {
-            background: var(--panel);
-            border-radius: 18px;
-            border: 1px solid var(--panel-border);
-            padding: 18px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-            max-height: calc(100vh - 220px);
-            overflow-y: auto;
-        }
+                        buttons.attack.onclick = () => this.playerAttack(0.5);
+                        buttons.blitz.onclick = () => this.playerAttack(0.75);
+                        buttons.city.onclick = () => this.buildStructure('city');
+                        buttons.defense.onclick = () => this.buildStructure('defense');
+                        buttons.port.onclick = () => this.buildStructure('port');
+                        buttons.sam.onclick = () => this.buildStructure('sam');
+                        buttons.silo.onclick = () => this.buildStructure('silo');
+                        buttons.trade.onclick = () => this.launchTradeFleet();
+                        buttons.warship.onclick = () => this.buildWarship();
+                        buttons.nuke.onclick = () => this.toggleNukeMode();
+                    },
 
-        section {
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 14px;
-            padding: 12px 14px;
-            background: rgba(255,255,255,0.01);
-        }
+                    async loadProvinceData() {
+                        this.pushLog('Loading Natural Earth provinces...');
+                        const response = await fetch(ASSET_PATHS.provinces);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        const geojson = await response.json();
+                        this.ingestGeoJSON(geojson);
+                        this.pushLog(`Mapped ${this.provincePolygons.length} province polygons.`);
+                    },
 
-        section h2 {
-            margin: 0 0 6px;
-            font-size: 0.95rem;
-            letter-spacing: 0.08em;
-            color: var(--accent);
+                    ingestGeoJSON(geojson) {
+                        this.provincePolygons = [];
+                        this.provinceBuckets.clear();
+                        geojson.features.forEach((feature) => {
+                            if (!feature.geometry || !feature.geometry.coordinates) return;
+                            const { type, coordinates } = feature.geometry;
+                            if (type === 'Polygon') {
+                                this.registerPolygon(feature, coordinates);
+                            } else if (type === 'MultiPolygon') {
+                                coordinates.forEach((poly) => this.registerPolygon(feature, poly));
+                            }
+                        });
+                    },
+
+                    registerPolygon(feature, polygonCoords) {
+                        if (!polygonCoords || !polygonCoords.length) return;
+                        const ring = polygonCoords[0].map(([lon, lat]) => ({ lon, lat }));
+                        if (ring.length < 3) return;
+                        const bbox = this.computeBbox(ring);
+                        const poly = {
+                            name: feature.properties?.name ?? 'Unknown',
+                            admin: feature.properties?.admin ?? feature.properties?.geonunit ?? 'Unassigned',
+                            coords: ring,
+                            bbox,
+                            centroid: this.computeCentroid(ring),
+                            seed: this.hashString(`${feature.properties?.name}-${feature.properties?.admin}`)
+                        };
+                        this.provincePolygons.push(poly);
+                        this.bucketizePolygon(poly);
+                    },
+
+                    computeBbox(ring) {
+                        let minLon = Infinity;
+                        let maxLon = -Infinity;
+                        let minLat = Infinity;
+                        let maxLat = -Infinity;
+                        ring.forEach(({ lon, lat }) => {
+                            if (lon < minLon) minLon = lon;
+                            if (lon > maxLon) maxLon = lon;
+                            if (lat < minLat) minLat = lat;
+                            if (lat > maxLat) maxLat = lat;
+                        });
+                        return { minLon, maxLon, minLat, maxLat };
+                    },
+
+                    computeCentroid(ring) {
+                        const sum = ring.reduce((acc, point) => {
+                            acc.lon += point.lon;
+                            acc.lat += point.lat;
+                            return acc;
+                        }, { lon: 0, lat: 0 });
+                        return { lon: sum.lon / ring.length, lat: sum.lat / ring.length };
+                    },
+
+                    bucketizePolygon(poly) {
+                        const lonStart = this.lonToBucket(poly.bbox.minLon);
+                        const lonEnd = this.lonToBucket(poly.bbox.maxLon);
+                        const latStart = this.latToBucket(poly.bbox.minLat);
+                        const latEnd = this.latToBucket(poly.bbox.maxLat);
+                        for (let lonIdx = lonStart; lonIdx <= lonEnd; lonIdx++) {
+                            for (let latIdx = latStart; latIdx <= latEnd; latIdx++) {
+                                const key = this.bucketKey(lonIdx, latIdx);
+                                if (!this.provinceBuckets.has(key)) {
+                                    this.provinceBuckets.set(key, []);
+                                }
+                                this.provinceBuckets.get(key).push(poly);
+                            }
+                        }
+                    },
+
+                    lonToBucket(lon) {
+                        return Math.floor((lon + 180) / CONFIG.bucketDeg);
+                    },
+
+                    latToBucket(lat) {
+                        return Math.floor((lat + 90) / CONFIG.bucketDeg);
+                    },
+
+                    bucketKey(lonBucket, latBucket) {
+                        return `${lonBucket}:${latBucket}`;
+                    },
+
+                    generateMap() {
+                        this.map = [];
+                        for (let y = 0; y < CONFIG.height; y++) {
+                            const row = [];
+                            for (let x = 0; x < CONFIG.width; x++) {
+                                const geo = this.projectToGeo(x, y);
+                                const province = this.lookupProvince(geo.lon, geo.lat);
+                                const terrainType = this.deriveTerrain(province, geo.lat);
+                                row.push({
+                                    x,
+                                    y,
+                                    lon: geo.lon,
+                                    lat: geo.lat,
+                                    province,
+                                    type: terrainType,
+                                    owner: null,
+                                    structures: { city: false, defense: false, port: false, sam: false, silo: false },
+                                    navBlocked: terrainType === 'water'
+                                });
+                            }
+                            this.map.push(row);
+                        }
+                    },
+
+                    projectToGeo(x, y) {
+                        const lon = (x / (CONFIG.width - 1)) * 360 - 180;
+                        const lat = 90 - (y / (CONFIG.height - 1)) * 180;
+                        return { lon, lat };
+                    },
+
+                    lookupProvince(lon, lat) {
+                        const lonBucket = this.lonToBucket(lon);
+                        const latBucket = this.latToBucket(lat);
+                        const primary = this.tryBuckets([[lonBucket, latBucket]], lon, lat);
+                        if (primary) return primary;
+                        const neighbors = [];
+                        for (let dx = -1; dx <= 1; dx++) {
+                            for (let dy = -1; dy <= 1; dy++) {
+                                if (dx === 0 && dy === 0) continue;
+                                neighbors.push([lonBucket + dx, latBucket + dy]);
+                            }
+                        }
+                        const neighborHit = this.tryBuckets(neighbors, lon, lat);
+                        if (neighborHit) return neighborHit;
+                        return null;
+                    },
+
+                    tryBuckets(bucketCoords, lon, lat) {
+                        for (const [lonIdx, latIdx] of bucketCoords) {
+                            const key = this.bucketKey(lonIdx, latIdx);
+                            const bucket = this.provinceBuckets.get(key);
+                            if (!bucket) continue;
+                            for (const poly of bucket) {
+                                if (lon < poly.bbox.minLon || lon > poly.bbox.maxLon || lat < poly.bbox.minLat || lat > poly.bbox.maxLat) continue;
+                                if (this.pointInPolygon(lon, lat, poly.coords)) return poly;
+                            }
+                        }
+                        return null;
+                    },
+
+                    pointInPolygon(lon, lat, ring) {
+                        let inside = false;
+                        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                            const xi = ring[i].lon;
+                            const yi = ring[i].lat;
+                            const xj = ring[j].lon;
+                            const yj = ring[j].lat;
+                            const intersect = ((yi > lat) !== (yj > lat)) &&
+                                (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-9) + xi);
+                            if (intersect) inside = !inside;
+                        }
+                        return inside;
+                    },
+
+                    deriveTerrain(province, lat) {
+                        if (!province) return 'water';
+                        const seed = province.seed % 100;
+                        const absLat = Math.abs(lat);
+                        if (absLat > 62) return 'mountain';
+                        if (absLat < 15 && seed < 55) return 'sand';
+                        if (seed < 30) return 'plains';
+                        if (seed < 65) return 'hill';
+                        return 'plains';
+                    },
+
+                    identifyStartingSpots() {
+                        const candidates = [];
+                        for (let y = 1; y < CONFIG.height - 1; y++) {
+                            for (let x = 1; x < CONFIG.width - 1; x++) {
+                                const tile = this.map[y][x];
+                                if (tile.type === 'water' || tile.type === 'mountain') continue;
+                                const coast = this.neighbors(tile).some((t) => t.type === 'water');
+                                const rating = this.evaluateStart(x, y, coast);
+                                candidates.push({ tile, rating, coast });
+                            }
+                        }
+                        candidates.sort((a, b) => b.rating - a.rating);
+                        this.startingSpots = candidates.slice(0, 6);
+                    },
+
+                    evaluateStart(x, y, coast) {
+                        let score = coast ? 5 : 0;
+                        const radius = 4;
+                        for (let dy = -radius; dy <= radius; dy++) {
+                            for (let dx = -radius; dx <= radius; dx++) {
+                                const tx = x + dx;
+                                const ty = y + dy;
+                                if (!this.inBounds(tx, ty)) continue;
+                                const tile = this.map[ty][tx];
+                                if (tile.type === 'water') score -= 0.4;
+                                if (tile.type === 'sand') score += 0.6;
+                                if (tile.type === 'plains') score += 1.5;
+                                if (tile.type === 'hill') score += 0.8;
+                            }
+                        }
+                        const edgeBuffer = Math.min(x, y, CONFIG.width - x, CONFIG.height - y);
+                        score += edgeBuffer * 0.25;
+                        if (this.map[y][x].province) score += 2;
+                        return score;
+                    },
+
+                    renderStartOptions() {
+                        startOptionsBox.innerHTML = '';
+                        if (!this.startingSpots.length) {
+                            startOptionsBox.innerHTML = '<p style="color:var(--muted);">No viable land found. Try refreshing for a new projection.</p>';
+                            confirmBtn.disabled = true;
+                            return;
+                        }
+                        confirmBtn.disabled = false;
+                        this.startingSpots.forEach((spot, idx) => {
+                            const card = document.createElement('div');
+                            card.className = 'start-option';
+                            const provinceLabel = spot.tile.province ? `${spot.tile.province.name}, ${spot.tile.province.admin}` : 'Uncharted Coast';
+                            card.innerHTML = `
+                                <strong>Zone ${idx + 1}</strong><br>
+                                ${provinceLabel}<br>
+                                ${spot.coast ? 'Coastal' : 'Inland'} · Score ${spot.rating.toFixed(1)}
+                            `;
+                            card.addEventListener('click', () => {
+                                document.querySelectorAll('.start-option').forEach((el) => el.classList.remove('selected'));
+                                card.classList.add('selected');
+                                this.selectedStart = spot.tile;
+                            });
+                            startOptionsBox.appendChild(card);
+                        });
+                    },
+
+                    describeStart(tile) {
+                        if (!tile.province) return 'Open ocean fringe';
+                        return `${tile.province.name}, ${tile.province.admin}`;
+                    },
+
+                    confirmStartingSpot() {
+                        if (!this.selectedStart) {
+                            this.pushLog('Select a landing zone first.');
+                            return;
+                        }
+                        this.deployCountries();
+                        overlay.classList.add('hidden');
+                        this.mode = 'running';
+                        this.tickHandle = setInterval(() => this.tick(), CONFIG.tickMs);
+                        this.pushLog('Coalition forces established beachhead.');
+                    },
+
+                    deployCountries() {
+                        const playerColor = '#ffd571';
+                        const enemyColor = '#61c0ff';
+                        const aiStart = this.pickAIOpposite();
+
+                        this.countries = {
+                            PLAYER: this.createCountry('Coalition', playerColor, this.selectedStart),
+                            AI: this.createCountry('Eigen Dominion', enemyColor, aiStart)
+                        };
+
+                        this.claimInitialTerritory('PLAYER', this.selectedStart);
+                        this.claimInitialTerritory('AI', aiStart);
+                    },
+
+                    createCountry(name, color, tile) {
+                        return {
+                            id: name,
+                            color,
+                            population: 15000,
+                            gold: 550,
+                            workerRatio: CONFIG.workerRatioDefault,
+                            nukes: 0,
+                            nukeProgress: 0,
+                            warships: 0,
+                            tradeShips: 1,
+                            betrayalTimer: 0,
+                            morale: 1,
+                            cooldown: 0,
+                            targetHint: null,
+                            start: tile
+                        };
+                    },
+
+                    pickAIOpposite() {
+                        const farthest = this.startingSpots.reduce((best, spot) => {
+                            const dx = spot.tile.x - this.selectedStart.x;
+                            const dy = spot.tile.y - this.selectedStart.y;
+                            const dist = dx * dx + dy * dy;
+                            if (!best || dist > best.dist) return { tile: spot.tile, dist };
+                            return best;
+                        }, null);
+                        return farthest ? { ...farthest.tile } : this.startingSpots[1]?.tile ?? this.selectedStart;
+                    },
+
+                    claimInitialTerritory(owner, tile) {
+                        const radius = 2;
+                        for (let dy = -radius; dy <= radius; dy++) {
+                            for (let dx = -radius; dx <= radius; dx++) {
+                                const tx = tile.x + dx;
+                                const ty = tile.y + dy;
+                                if (!this.inBounds(tx, ty)) continue;
+                                const t = this.map[ty][tx];
+                                if (t.type === 'water') continue;
+                                if (Math.abs(dx) + Math.abs(dy) > radius + 1) continue;
+                                t.owner = owner;
+                                if (dx === 0 && dy === 0) {
+                                    t.structures.city = true;
+                                }
+                            }
+                        }
+                    },
+
+                    handleCanvasClick(event) {
+                        const rect = canvas.getBoundingClientRect();
+                        const rawX = Math.floor((event.clientX - rect.left) / (canvas.clientWidth / CONFIG.width));
+                        const rawY = Math.floor((event.clientY - rect.top) / (canvas.clientHeight / CONFIG.height));
+                        const x = Math.min(Math.max(rawX, 0), CONFIG.width - 1);
+                        const y = Math.min(Math.max(rawY, 0), CONFIG.height - 1);
+                        if (!this.inBounds(x, y)) return;
+                        const tile = this.map[y][x];
+                        if (this.nukeTargeting) {
+                            this.fireNuke(tile);
+                            return;
+                        }
+                        this.selectedTile = tile;
+                        this.updateTilePanel();
+                        this.render();
+                    },
+
+                    handleWorkerRatio() {
+                        if (!this.countries) return;
+                        const ratio = Number(slider.value) / 100;
+                        this.countries.PLAYER.workerRatio = ratio;
+                        labels.workerPercent.textContent = `${Math.round(ratio * 100)}%`;
+                        this.pushLog(`Adjusted worker ratio to ${(ratio * 100).toFixed(0)}%. Growth sweet spot is ~42%.`);
+                    },
+
+                    playerAttack(commitRatio) {
+                        if (!this.selectedTile) {
+                            this.pushLog('Select a tile to attack.', 'danger');
+                            return;
+                        }
+                        this.issueAttack('PLAYER', this.selectedTile, commitRatio);
+                    },
+
+                    issueAttack(attackerId, tile, commitRatio) {
+                        const attacker = this.countries?.[attackerId];
+                        if (!attacker || !tile) return;
+                        if (!TERRAIN[tile.type]?.passable) {
+                            if (attackerId === 'PLAYER') this.pushLog('Open ocean can only be controlled via ports.', 'danger');
+                            return;
+                        }
+                        if (tile.owner === attackerId) {
+                            if (attackerId === 'PLAYER') this.pushLog('Tile already secured.');
+                            return;
+                        }
+                        if (!this.tileAdjacentTo(tile, attackerId)) {
+                            if (attackerId === 'PLAYER') this.pushLog('Need a contiguous front to attack.', 'danger');
+                            return;
+                        }
+
+                        const defenderId = tile.owner;
+                        const defender = defenderId ? this.countries[defenderId] : null;
+                        const attackTroops = Math.max(1, Math.floor(this.getManpower(attacker) * commitRatio));
+                        if (attackTroops < 1) {
+                            if (attackerId === 'PLAYER') this.pushLog('Not enough manpower ready.', 'danger');
+                            return;
+                        }
+
+                        const baseCost = TERRAIN[tile.type].baseCost || CONFIG.neutralCaptureBase;
+                        const defenseBonus = TERRAIN[tile.type].defense;
+                        const defensePost = defender && this.defenseCoverage(tile, defenderId);
+                        const shield = defender ? this.computeShield(defender) : 0;
+
+                        const defenderLoss = defender ? Math.max(10, Math.round(shield / 10)) : Math.round(baseCost * 0.15);
+                        let attackerLoss = Math.round(defenderLoss * (1 + defenseBonus));
+                        if (defensePost) attackerLoss *= 6;
+                        if (tile.structures.sam && defender) attackerLoss *= 1.2;
+
+                        const costToCapture = baseCost + (defender ? shield * 0.2 : 0);
+                        const success = attackTroops - attackerLoss > costToCapture * 0.35;
+
+                        attacker.population = Math.max(0, attacker.population - attackerLoss);
+                        if (defender) defender.population = Math.max(0, defender.population - defenderLoss);
+
+                        if (success) {
+                            tile.owner = attackerId;
+                            if (defender) {
+                                tile.structures.city = false;
+                                tile.structures.port = false;
+                                tile.structures.defense = false;
+                                tile.structures.sam = false;
+                                tile.structures.silo = false;
+                            }
+                            if (attackerId === 'PLAYER') {
+                                const provinceLabel = tile.province ? `${tile.province.name}, ${tile.province.admin}` : TERRAIN[tile.type].name;
+                                this.pushLog(`Captured ${provinceLabel}. Losses: ${attackerLoss}.`);
+                            }
+                        } else if (attackerId === 'PLAYER') {
+                            this.pushLog('Assault stalled. Wait for manpower or soften defenses.', 'danger');
+                        }
+
+                        if (defenderId === 'PLAYER' && !success) {
+                            this.countries.PLAYER.betrayalTimer = CONFIG.betrayalWindow;
+                        }
+
+                        this.checkVictory();
+                        this.updatePanels();
+                        this.render();
+                    },
+
+                    defenseCoverage(tile, owner) {
+                        for (let y = Math.max(0, tile.y - CONFIG.defensePostRange); y <= Math.min(CONFIG.height - 1, tile.y + CONFIG.defensePostRange); y++) {
+                            for (let x = Math.max(0, tile.x - CONFIG.defensePostRange); x <= Math.min(CONFIG.width - 1, tile.x + CONFIG.defensePostRange); x++) {
+                                const t = this.map[y][x];
+                                if (t.owner !== owner) continue;
+                                if (!t.structures.defense) continue;
+                                const dist = Math.hypot(tile.x - x, tile.y - y);
+                                if (dist <= CONFIG.defensePostRange) return true;
+                            }
+                        }
+                        return false;
+                    },
+
+                    buildStructure(kind) {
+                        if (!this.countries) {
+                            this.pushLog('Deploy your forces before building.', 'danger');
+                            return;
+                        }
+                        if (!this.selectedTile || this.selectedTile.owner !== 'PLAYER') {
+                            this.pushLog('Select one of your tiles first.', 'danger');
+                            return;
+                        }
+                        if (!TERRAIN[this.selectedTile.type]?.passable) {
+                            this.pushLog('Cannot build structures in open ocean.', 'danger');
+                            return;
+                        }
+                        if (kind === 'port' && !this.neighbors(this.selectedTile).some((t) => t.type === 'water')) {
+                            this.pushLog('Need coastline adjacency for a port.', 'danger');
+                            return;
+                        }
+                        if (this.selectedTile.structures[kind]) {
+                            this.pushLog('Structure already present.');
+                            return;
+                        }
+                        const cost = STRUCTURE_COST[kind];
+                        const player = this.countries.PLAYER;
+                        if (player.gold < cost.gold || this.getManpower(player) < cost.troops) {
+                            this.pushLog('Insufficient resources.', 'danger');
+                            return;
+                        }
+                        player.gold -= cost.gold;
+                        player.population = Math.max(0, player.population - cost.troops);
+                        this.selectedTile.structures[kind] = true;
+                        if (kind === 'port') {
+                            player.tradeShips += 1;
+                            player.ports = (player.ports || 0) + 1;
+                        }
+                        if (kind === 'silo') this.pushLog('Silo queued nuclear stockpiling.');
+                        this.updatePanels();
+                        this.render();
+                    },
+
+                    launchTradeFleet() {
+                        if (!this.countries) {
+                            this.pushLog('Deploy your forces before managing fleets.', 'danger');
+                            return;
+                        }
+                        const player = this.countries.PLAYER;
+                        const portCount = player.ports ?? this.map.flat().filter((t) => t.owner === 'PLAYER' && t.structures.port).length;
+                        if (portCount < 1) {
+                            this.pushLog('Establish a port first.', 'danger');
+                            return;
+                        }
+                        if (player.gold < STRUCTURE_COST.trade.gold) {
+                            this.pushLog('Need 300 gold for a trade fleet.', 'danger');
+                            return;
+                        }
+                        player.gold -= STRUCTURE_COST.trade.gold;
+                        player.tradeShips += 1;
+                        this.pushLog('Trade convoy added. Protect it with warships.');
+                        this.updatePanels();
+                    },
+
+                    buildWarship() {
+                        const player = this.countries.PLAYER;
+                        if (player.gold < STRUCTURE_COST.warship.gold || this.getManpower(player) < STRUCTURE_COST.warship.troops) {
+                            this.pushLog('Need 400 gold and 200 troops for a warship.', 'danger');
+                            return;
+                        }
+                        player.gold -= STRUCTURE_COST.warship.gold;
+                        player.population = Math.max(0, player.population - STRUCTURE_COST.warship.troops);
+                        player.warships += 1;
+                        this.pushLog('Warship ready. Use it to contest trade lanes.');
+                        this.updatePanels();
+                    },
+
+                    toggleNukeMode() {
+                        const player = this.countries?.PLAYER;
+                        if (!player || player.nukes <= 0) {
+                            this.pushLog('No nukes ready.', 'danger');
+                            return;
+                        }
+                        this.nukeTargeting = !this.nukeTargeting;
+                        nukeBanner.classList.toggle('visible', this.nukeTargeting);
+                    },
+
+                    fireNuke(tile) {
+                        if (!tile.owner || tile.owner === 'PLAYER') {
+                            this.pushLog('Choose an enemy tile for nukes.', 'danger');
+                            return;
+                        }
+                        const player = this.countries.PLAYER;
+                        if (player.nukes <= 0) {
+                            this.nukeTargeting = false;
+                            nukeBanner.classList.remove('visible');
+                            return;
+                        }
+                        player.nukes -= 1;
+                        const defender = this.countries[tile.owner];
+                        const intercepted = this.checkSAM(tile, tile.owner);
+                        if (intercepted) {
+                            this.pushLog('SAM intercepted the atomic strike!', 'danger');
+                            this.nukeTargeting = false;
+                            nukeBanner.classList.remove('visible');
+                            return;
+                        }
+
+                        defender.population = Math.max(0, defender.population - 1200);
+                        tile.structures.city = false;
+                        tile.structures.sam = false;
+                        tile.structures.silo = false;
+                        tile.structures.defense = false;
+                        tile.owner = null;
+                        this.pushLog('Nuclear strike successful. Target neutralized.', 'danger');
+                        this.nukeTargeting = false;
+                        nukeBanner.classList.remove('visible');
+                        this.render();
+                        this.updatePanels();
+                    },
+
+                    checkSAM(tile, owner) {
+                        for (let y = Math.max(0, tile.y - CONFIG.samRange); y <= Math.min(CONFIG.height - 1, tile.y + CONFIG.samRange); y++) {
+                            for (let x = Math.max(0, tile.x - CONFIG.samRange); x <= Math.min(CONFIG.width - 1, tile.x + CONFIG.samRange); x++) {
+                                const t = this.map[y][x];
+                                if (t.owner !== owner || !t.structures.sam) continue;
+                                const dist = Math.hypot(tile.x - x, tile.y - y);
+                                if (dist <= CONFIG.samRange) {
+                                    if (Math.random() < 0.65) {
+                                        this.pushLog('SAM battery absorbed the warhead.');
+                                        t.structures.sam = false;
+                                        return true;
+                                    }
+                                    this.pushLog('SAM overwhelmed.');
+                                    t.structures.sam = false;
+                                    return false;
+                                }
+                            }
+                        }
+                        return false;
+                    },
+
+                    tick() {
+                        if (this.mode !== 'running') return;
+                        this.day += 1;
+                        this.updateCountryStats('PLAYER');
+                        this.updateCountryStats('AI');
+                        this.processTrade();
+                        this.aiTurn();
+                        this.render();
+                        this.updatePanels();
+                        this.logDecay();
+                    },
+
+                    logDecay() {
+                        this.log = this.log.slice(-40);
+                    },
+
+                    updateCountryStats(id) {
+                        const country = this.countries[id];
+                        const tiles = this.map.flat().filter((t) => t.owner === id);
+                        const cities = tiles.filter((t) => t.structures.city).length;
+                        const silos = tiles.filter((t) => t.structures.silo).length;
+                        const ports = tiles.filter((t) => t.structures.port).length;
+
+                        const basePop = Math.pow(Math.max(1, tiles.length), 0.6) * 1000 + 5000;
+                        const cityBonus = cities * 1200;
+                        const maxPop = Math.round(2 * basePop + cityBonus);
+                        country.maxPopulation = maxPop;
+
+                        const growth = Math.max(0, Math.round((10 + Math.pow(country.population, 0.73) / 4) * (1 - country.population / Math.max(1, maxPop))));
+                        country.population = Math.max(500, country.population + growth);
+                        if (country.population > maxPop) country.population = maxPop;
+
+                        country.gold += cities * CONFIG.cityGold;
+                        country.nukeProgress += silos * CONFIG.nukeChargePerTick;
+                        if (country.nukeProgress >= 100) {
+                            country.nukes += 1;
+                            country.nukeProgress -= 100;
+                            if (id === 'PLAYER') this.pushLog('A nuclear warhead is ready.');
+                        }
+                        country.betrayalTimer = Math.max(0, country.betrayalTimer - 1);
+                        country.ports = ports;
+                    },
+
+                    processTrade() {
+                        const player = this.countries.PLAYER;
+                        const enemy = this.countries.AI;
+                        const playerControl = (player.warships + 1) / (enemy.warships + 1);
+                        const enemyControl = (enemy.warships + 1) / (player.warships + 1);
+
+                        const playerIncome = Math.round(player.tradeShips * CONFIG.tradeGold * Math.min(1.5, playerControl));
+                        const enemyIncome = Math.round(enemy.tradeShips * CONFIG.tradeGold * Math.min(1.5, enemyControl));
+
+                        player.gold += playerIncome;
+                        enemy.gold += enemyIncome;
+
+                        if (player.warships > 0 && Math.random() < CONFIG.warshipRaidChance) {
+                            const stolen = Math.min(enemy.tradeShips, 1);
+                            enemy.tradeShips = Math.max(0, enemy.tradeShips - stolen);
+                            this.pushLog('Warships raided enemy trade fleet.');
+                        }
+                        if (enemy.warships > 0 && Math.random() < CONFIG.warshipRaidChance) {
+                            player.tradeShips = Math.max(0, player.tradeShips - 1);
+                            this.pushLog('Enemy warships disrupted our convoy.', 'danger');
+                        }
+                    },
+
+                    aiTurn() {
+                        const ai = this.countries.AI;
+                        const manpower = this.getManpower(ai);
+                        const tiles = this.map.flat().filter((t) => t.owner === 'AI');
+                        if (!tiles.length) return;
+
+                        const borderTiles = tiles.filter((t) => this.neighbors(t).some((n) => n.owner !== 'AI'));
+                        const targets = borderTiles.flatMap((tile) => this.neighbors(tile)).filter((t) => t.owner !== 'AI');
+                        if (targets.length && manpower > 800) {
+                            const target = targets[Math.floor(Math.random() * targets.length)];
+                            this.issueAttack('AI', target, 0.6);
+                        } else if (ai.gold > STRUCTURE_COST.city.gold && Math.random() < 0.5) {
+                            const cityTile = borderTiles.find((t) => !t.structures.city && t.type !== 'water');
+                            if (cityTile) {
+                                cityTile.structures.city = true;
+                                ai.gold -= STRUCTURE_COST.city.gold;
+                            }
+                        } else if (ai.gold > STRUCTURE_COST.port.gold && Math.random() < 0.35) {
+                            const portTile = tiles.find((t) => !t.structures.port && this.neighbors(t).some((n) => n.type === 'water'));
+                            if (portTile) {
+                                portTile.structures.port = true;
+                                ai.gold -= STRUCTURE_COST.port.gold;
+                                ai.tradeShips += 1;
+                            }
+                        } else if (ai.gold > 900 && Math.random() < 0.2) {
+                            ai.gold -= 900;
+                            ai.warships += 1;
+                        } else if (ai.gold > STRUCTURE_COST.silo.gold && Math.random() < 0.15) {
+                            const siloTile = tiles.find((t) => !t.structures.silo && t.type !== 'water');
+                            if (siloTile) {
+                                siloTile.structures.silo = true;
+                                ai.gold -= STRUCTURE_COST.silo.gold;
+                            }
+                        }
+
+                        if (ai.nukes > 0 && Math.random() < 0.18) {
+                            const playerTiles = this.map.flat().filter((t) => t.owner === 'PLAYER');
+                            if (playerTiles.length) {
+                                const target = playerTiles[Math.floor(Math.random() * playerTiles.length)];
+                                this.nukeTargeting = true;
+                                this.fireNuke(target);
+                                this.nukeTargeting = false;
+                            }
+                        }
+                    },
+
+                    computeShield(country) {
+                        const tilesOwned = this.map.flat().filter((t) => t.owner && t.owner === this.ownerId(country)).length;
+                        const troops = this.getManpower(country);
+                        const density = troops / Math.max(1, tilesOwned);
+                        return Math.min(120, Math.round(density));
+                    },
+
+                    getManpower(country) {
+                        return Math.max(0, Math.round(country.population * (1 - country.workerRatio)));
+                    },
+
+                    tileAdjacentTo(tile, owner) {
+                        return this.neighbors(tile).some((t) => t.owner === owner);
+                    },
+
+                    neighbors(tile) {
+                        const dirs = [ [1,0], [-1,0], [0,1], [0,-1] ];
+                        return dirs.map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy }))
+                            .filter((pos) => this.inBounds(pos.x, pos.y))
+                            .map((pos) => this.map[pos.y][pos.x]);
+                    },
+
+                    inBounds(x, y) {
+                        return x >= 0 && y >= 0 && x < CONFIG.width && y < CONFIG.height;
+                    },
+
+                    render() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        if (!this.map.length) {
+                            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                            gradient.addColorStop(0, '#071022');
+                            gradient.addColorStop(1, '#03070f');
+                            ctx.fillStyle = gradient;
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.fillStyle = '#8294b9';
+                            ctx.font = '16px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('Loading Natural Earth data...', canvas.width / 2, canvas.height / 2);
+                            return;
+                        }
+                        for (let y = 0; y < CONFIG.height; y++) {
+                            for (let x = 0; x < CONFIG.width; x++) {
+                                const tile = this.map[y][x];
+                                const baseColor = TERRAIN[tile.type].color;
+                                ctx.fillStyle = baseColor;
+                                ctx.fillRect(x * CONFIG.tile, y * CONFIG.tile, CONFIG.tile, CONFIG.tile);
+
+                                if (tile.owner && this.countries) {
+                                    ctx.fillStyle = this.countries[tile.owner].color;
+                                    ctx.globalAlpha = 0.32;
+                                    ctx.fillRect(x * CONFIG.tile, y * CONFIG.tile, CONFIG.tile, CONFIG.tile);
+                                    ctx.globalAlpha = 1;
+                                }
+
+                                if (tile.structures.city) this.drawGlyph(x, y, '#ffd86b', '▲');
+                                if (tile.structures.port) this.drawGlyph(x, y, '#7ae1ff', '⚓');
+                                if (tile.structures.defense) this.drawGlyph(x, y, '#ff8f5c', '✶');
+                                if (tile.structures.sam) this.drawGlyph(x, y, '#ffe9a3', '⛨');
+                                if (tile.structures.silo) this.drawGlyph(x, y, '#f96d8a', '核');
+                            }
+                        }
+
+                        if (this.selectedTile) {
+                            ctx.strokeStyle = '#ffffff';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(
+                                this.selectedTile.x * CONFIG.tile + 1,
+                                this.selectedTile.y * CONFIG.tile + 1,
+                                CONFIG.tile - 2,
+                                CONFIG.tile - 2
+                            );
+                        }
+                    },
+
+                    drawGlyph(x, y, color, glyph) {
+                        ctx.fillStyle = color;
+                        ctx.font = `${CONFIG.tile * 0.5}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(glyph, x * CONFIG.tile + CONFIG.tile / 2, y * CONFIG.tile + CONFIG.tile / 2);
+                    },
+
+                    updatePanels() {
+                        if (!this.countries) return;
+                        const player = this.countries.PLAYER;
+                        labels.day.textContent = this.day;
+                        labels.pop.textContent = player.population.toLocaleString();
+                        labels.manpower.textContent = this.getManpower(player).toLocaleString();
+                        labels.gold.textContent = player.gold.toLocaleString();
+                        labels.shield.textContent = this.computeShield(player);
+                        const playerTiles = this.map.flat().filter((t) => t.owner === 'PLAYER');
+                        labels.tileCount.textContent = playerTiles.length;
+                        labels.cityCount.textContent = playerTiles.filter((t) => t.structures.city).length;
+                        labels.portCount.textContent = player.ports || 0;
+                        labels.tradeCount.textContent = player.tradeShips;
+                        labels.warshipCount.textContent = player.warships;
+                        labels.siloCount.textContent = playerTiles.filter((t) => t.structures.silo).length;
+                        labels.nukeCount.textContent = player.nukes;
+                        this.updateTilePanel();
+                        labels.navalReadout.textContent = `Income ${player.tradeShips * CONFIG.tradeGold} g/tick · Ports ${player.ports || 0}`;
+                        labels.log.innerHTML = this.log.map((entry) => `<div class="log-entry ${entry.level || ''}">${entry.text}</div>`).join('');
+                    },
+
+                    updateTilePanel() {
+                        if (!this.selectedTile) {
+                            labels.tileReadout.textContent = 'Select a tile to inspect terrain, owner, and defenses.';
+                            return;
+                        }
+                        const tile = this.selectedTile;
+                        const owner = tile.owner ? this.countries[tile.owner].id : 'Neutral';
+                        const structures = Object.entries(tile.structures).filter(([, val]) => val).map(([key]) => key).join(', ') || 'None';
+                        const provinceLabel = tile.province ? `${tile.province.name}, ${tile.province.admin}` : 'International Waters';
+                        labels.tileReadout.innerHTML = `
+                            Location: <span>${provinceLabel}</span><br>
+                            Terrain: <span>${TERRAIN[tile.type].name}</span><br>
+                            Owner: <span>${owner}</span><br>
+                            Structures: <span>${structures}</span><br>
+                            Lat/Lon: <span>${tile.lat.toFixed(1)}°, ${tile.lon.toFixed(1)}°</span><br>
+                            Capture cost ≈ <span>${TERRAIN[tile.type].baseCost}</span>
+                        `;
+                    },
+
+                    pushLog(text, level) {
+                        this.log.unshift({ text, level });
+                        labels.log.innerHTML = this.log.slice(0, 12).map((entry) => `<div class="log-entry ${entry.level || ''}">${entry.text}</div>`).join('');
+                    },
+
+                    ownerId(country) {
+                        return country === this.countries.PLAYER ? 'PLAYER' : 'AI';
+                    },
+
+                    checkVictory() {
+                        const totalLand = this.map.flat().filter((t) => t.type !== 'water').length;
+                        const playerLand = this.map.flat().filter((t) => t.owner === 'PLAYER').length;
+                        const enemyLand = this.map.flat().filter((t) => t.owner === 'AI').length;
+                        if (playerLand / totalLand >= CONFIG.dominationThreshold) {
+                            this.mode = 'ended';
+                            clearInterval(this.tickHandle);
+                            this.pushLog('Domination achieved. Earthside command ecstatic.');
+                        } else if (enemyLand / totalLand >= CONFIG.dominationThreshold) {
+                            this.mode = 'ended';
+                            clearInterval(this.tickHandle);
+                            this.pushLog('Enemy dominates theater. Retreat!', 'danger');
+                        }
+                    },
+
+                    hashString(str = '') {
+                        let hash = 0;
+                        for (let i = 0; i < str.length; i++) {
+                            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                            hash |= 0;
+                        }
+                        return Math.abs(hash);
+                    }
+                };
+
+                window.game = game;
+                window.addEventListener('load', () => {
+                    game.init();
+                });
+            })();
+            </script>
         }
 
         #actions button {
@@ -523,6 +1399,8 @@
                 this.mode = 'running';
                 this.tickHandle = setInterval(() => this.tick(), CONFIG.tickMs);
                 this.pushLog('Coalition forces established beachhead.');
+                this.updatePanels();
+                this.render();
             },
 
             deployCountries() {
@@ -737,6 +1615,10 @@
             },
 
             buildWarship() {
+                if (!this.countries) {
+                    this.pushLog('Deploy your forces before commissioning ships.', 'danger');
+                    return;
+                }
                 const player = this.countries.PLAYER;
                 if (player.gold < STRUCTURE_COST.warship.gold || this.getManpower(player) < STRUCTURE_COST.warship.troops) {
                     this.pushLog('Need 400 gold and 200 troops for a warship.', 'danger');
