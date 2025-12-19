@@ -3,1796 +3,1065 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iron Dominion: World Strategy</title>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <title>Iron Dominion · OpenFront Prototype</title>
     <style>
         :root {
-            --bg-color: #0a0a0a;
-            --text-color: #ffd700;
-            --accent-color: #ff9933;
-            --border-color: #8b7355;
-            --panel-bg: rgba(20, 20, 20, 0.95);
-            --topbar-bg: rgba(10, 10, 10, 0.95);
-            --success: #44ff44;
-            --danger: #ff4444;
+            --bg: #04070f;
+            --panel: rgba(7, 13, 25, 0.92);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --accent: #ffcc4c;
+            --accent-soft: #ffd98a;
+            --danger: #ff5b6e;
+            --success: #68f1a4;
+            --muted: #7b8aa1;
+            --text: #eef1ff;
         }
+
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
-            user-select: none;
+            min-height: 100vh;
+            background: radial-gradient(circle at 20% 20%, #0b172b, #020409 65%);
+            color: var(--text);
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
         }
 
-        #game-container {
+        #root {
+            padding: 24px clamp(12px, 5vw, 48px);
             display: flex;
             flex-direction: column;
-            width: 100vw;
-            height: 100vh;
+            gap: 18px;
         }
 
-        /* --- TOP BAR (HOI4 Style) --- */
-        #top-bar {
-            height: 50px;
-            background: var(--topbar-bg);
-            border-bottom: 2px solid var(--border-color);
+        header {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            padding: 18px 24px;
             display: flex;
-            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 18px;
             align-items: center;
-            padding: 0 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-            z-index: 100;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
         }
 
-        .top-section {
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        #status-cluster {
             display: flex;
-            align-items: center;
-            gap: 20px;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
-        .stat-box {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #fff;
-            background: rgba(255,255,255,0.05);
-            padding: 5px 10px;
-            border-radius: 4px;
-            border: 1px solid #333;
+        .stat-card {
+            min-width: 130px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.02);
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
 
-        .stat-icon { font-size: 1.2em; }
+        .stat-card strong { display: block; font-size: 1.2rem; color: var(--accent); margin-top: 4px; }
 
-        #country-selector {
-            background: #222;
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 5px;
-            font-family: inherit;
-            font-weight: bold;
-        }
-
-        /* --- MAP AREA --- */
-        #map-area {
-            flex-grow: 1;
-            position: relative;
-            background: #050505;
-            overflow: hidden;
-            cursor: grab;
-        }
-
-        #map-area:active {
-            cursor: grabbing;
+        #world-wrapper {
+            display: grid;
+            grid-template-columns: minmax(720px, 60vw) 340px;
+            gap: 18px;
         }
 
         canvas {
-            display: block;
+            width: 100%;
+            height: calc(100vh - 220px);
+            max-height: 760px;
+            border-radius: 18px;
+            border: 1px solid var(--panel-border);
+            background: #050b16;
+            box-shadow: inset 0 0 45px rgba(0,0,0,0.6);
+            cursor: crosshair;
         }
 
-        /* --- PROVINCE PANEL (Bottom Left) --- */
-        #province-panel {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 300px;
-            background: var(--panel-bg);
-            border: 2px solid var(--border-color);
-            padding: 15px;
-            display: none; /* Hidden by default */
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-            z-index: 90;
-        }
-
-        .panel-header {
-            color: var(--accent-color);
-            font-weight: bold;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
+        aside {
+            background: var(--panel);
+            border-radius: 18px;
+            border: 1px solid var(--panel-border);
+            padding: 18px;
             display: flex;
-            justify-content: space-between;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-        }
-
-        /* --- LOG PANEL (Bottom Right) --- */
-        #log-panel {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 300px;
-            height: 150px;
-            background: rgba(0,0,0,0.6);
-            border: 1px solid #333;
-            padding: 10px;
-            overflow-y: auto;
-            font-size: 0.8em;
-            color: #aaa;
-            pointer-events: none; /* Let clicks pass through if needed, but scroll might need events */
-            pointer-events: auto;
-        }
-
-        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 2px; }
-        .log-entry.war { color: #ff4444; }
-        .log-entry.peace { color: #44ff44; }
-        .log-entry.info { color: #88ccff; }
-
-        /* --- BUTTONS --- */
-        .btn {
-            background: #333;
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 6px 10px;
-            cursor: pointer;
-            text-transform: uppercase;
-            font-family: inherit;
-            font-weight: bold;
-            font-size: 0.8em;
-            transition: all 0.2s;
-        }
-        .btn:hover { background: var(--accent-color); color: #000; }
-        .btn-block { width: 100%; margin-bottom: 5px; }
-        .btn-danger { border-color: var(--danger); color: var(--danger); }
-        .btn-danger:hover { background: var(--danger); color: #000; }
-
-        /* --- MODALS --- */
-        .modal {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
             flex-direction: column;
-            z-index: 1000;
-            backdrop-filter: blur(5px);
-        }
-        
-        .modal-content {
-            background: var(--panel-bg);
-            border: 2px solid var(--accent-color);
-            padding: 30px;
-            max-width: 500px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(255, 153, 51, 0.2);
+            gap: 16px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+            max-height: calc(100vh - 220px);
+            overflow-y: auto;
         }
 
-        h1 { margin: 0 0 20px 0; color: var(--accent-color); }
-        h2 { margin: 0 0 15px 0; color: #fff; font-size: 1.2em; }
-        p { line-height: 1.5; color: #ccc; margin-bottom: 20px; }
-        
-        #tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            border: 1px solid var(--accent-color);
-            padding: 8px;
-            pointer-events: none;
+        section {
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.01);
+        }
+
+        section h2 {
+            margin: 0 0 6px;
+            font-size: 0.95rem;
+            letter-spacing: 0.08em;
+            color: var(--accent);
+        }
+
+        #actions button {
+            width: 100%;
+            margin: 4px 0;
+            border-radius: 10px;
+            padding: 10px 14px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            text-transform: uppercase;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+
+        #actions button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: rgba(255,255,255,0.09);
+        }
+
+        #actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .primary { border-color: var(--accent); background: linear-gradient(145deg, #fcb045, #fd1d1d); color: #0a0804; }
+        .danger { border-color: var(--danger); background: rgba(255,91,110,0.14); }
+
+        #intel-log {
+            max-height: 160px;
+            overflow-y: auto;
+            font-size: 0.87rem;
+            line-height: 1.4;
+            color: var(--muted);
+        }
+
+        .log-entry { margin-bottom: 6px; }
+        .log-entry span { color: var(--accent); }
+        .log-entry.danger span { color: var(--danger); }
+
+        #setup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 14, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 900;
+        }
+
+        #setup-overlay.hidden { display: none; }
+
+        #setup-card {
+            width: min(900px, 90vw);
+            background: rgba(8, 12, 20, 0.95);
+            border-radius: 22px;
+            border: 1px solid var(--panel-border);
+            padding: 24px;
+            box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+        }
+
+        #start-options {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .start-option {
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 12px;
+            cursor: pointer;
+            transition: border 0.15s ease, transform 0.15s ease;
+        }
+
+        .start-option.selected { border-color: var(--accent); transform: translateY(-2px); }
+
+        #nuke-banner {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            background: rgba(255, 102, 0, 0.92);
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #101010;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             display: none;
-            z-index: 200;
-            font-size: 0.9em;
+        }
+
+        #nuke-banner.visible { display: block; }
+
+        #worker-slider {
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .stat-list { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+        .stat-list span { color: var(--accent-soft); }
+
+        @media (max-width: 1100px) {
+            #world-wrapper { grid-template-columns: 1fr; }
+            canvas { height: 60vh; }
         }
     </style>
 </head>
 <body>
+    <div id="root">
+        <header>
+            <h1>Iron Dominion · OpenFront Theater</h1>
+            <div id="status-cluster">
+                <div class="stat-card">Day<strong id="day-label">1</strong></div>
+                <div class="stat-card">Population<strong id="pop-label">0</strong></div>
+                <div class="stat-card">Manpower<strong id="manpower-label">0</strong></div>
+                <div class="stat-card">Gold<strong id="gold-label">0</strong></div>
+                <div class="stat-card">Shield<strong id="shield-label">0</strong></div>
+            </div>
+        </header>
 
-<div id="game-container">
-    <!-- TOP BAR -->
-    <div id="top-bar">
-        <div class="top-section">
-            <div style="font-weight: bold; color: var(--accent-color); margin-right: 15px;">IRON DOMINION</div>
-            <div id="player-username" style="color: #88ccff; font-size: 0.9em; margin-right: 10px;">Commander</div>
-            <div id="player-country-display" style="font-weight: bold; color: #fff; border: 1px solid #444; padding: 5px 10px; background: #222;">-</div>
-        </div>
+        <div id="world-wrapper">
+            <canvas id="world" width="28" height="28"></canvas>
+            <aside>
+                <section id="nation-panel">
+                    <h2>Coalition Metrics</h2>
+                    <div class="stat-list">
+                        <div>Workers ratio: <span id="worker-percent">45%</span></div>
+                        <div>Tiles held: <span id="tile-count">0</span></div>
+                        <div>Cities: <span id="city-count">0</span> · Ports: <span id="port-count">0</span></div>
+                        <div>Trade ships: <span id="trade-count">0</span> · Warships: <span id="warship-count">0</span></div>
+                        <div>Nuke silos: <span id="silo-count">0</span> · Nukes ready: <span id="nuke-count">0</span></div>
+                    </div>
+                    <input id="worker-slider" type="range" min="25" max="75" value="45">
+                    <small style="color:var(--muted);">Adjust percentage of population working (growth sweet spot ≈42%).</small>
+                </section>
 
-        <div class="top-section stats">
-            <div class="stat-box" title="Manpower"><span class="stat-icon">👥</span> <span id="player-manpower">0</span></div>
-            <div class="stat-box" title="Industry"><span class="stat-icon">🏭</span> <span id="player-industry">0</span></div>
-            <div class="stat-box" title="Territory"><span class="stat-icon">🚩</span> <span id="player-provinces">0</span></div>
-        </div>
+                <section id="tile-panel">
+                    <h2>Tile Intel</h2>
+                    <div class="stat-list" id="tile-readout">Select a tile to inspect terrain, structures, and control.</div>
+                </section>
 
-        <div class="top-section">
-            <div style="margin-right: 15px; color: #aaa;">DAY <span id="game-day" style="color: #fff; font-weight: bold;">1</span></div>
-            <button class="btn" onclick="game.togglePause()" id="btn-pause">⏸</button>
-            <button class="btn" onclick="window.location.href='index.html'" style="margin-left: 10px;">EXIT</button>
+                <section id="actions">
+                    <h2>Operations</h2>
+                    <button id="btn-attack" class="primary">Assault (50% troops)</button>
+                    <button id="btn-blitz" class="primary">Blitz (75% troops)</button>
+                    <button id="btn-city">Build City (600 gold)</button>
+                    <button id="btn-defense">Deploy Defense Post (350g / 300 troops)</button>
+                    <button id="btn-port">Establish Port (500 gold)</button>
+                    <button id="btn-sam">Install SAM Battery (450g / 200 troops)</button>
+                    <button id="btn-silo">Construct Nuke Silo (1000g)</button>
+                    <button id="btn-trade">Launch Trade Fleet (300 gold)</button>
+                    <button id="btn-warship">Commission Warship (400g / 200 troops)</button>
+                    <button id="btn-nuke" class="danger">Launch Tactical Nuke</button>
+                </section>
+
+                <section>
+                    <h2>Naval & Strategic</h2>
+                    <div class="stat-list" id="naval-readout">Secure ports to unlock trade income. Warships guard convoys and can raid enemy routes.</div>
+                </section>
+
+                <section>
+                    <h2>Combat Log</h2>
+                    <div id="intel-log"></div>
+                </section>
+            </aside>
         </div>
     </div>
 
-    <!-- MAP AREA -->
-    <div id="map-area">
-        <canvas id="gameCanvas"></canvas>
-        <div id="loading-overlay" style="position: absolute; top:0; left:0; width:100%; height:100%; background: #000; display: flex; justify-content: center; align-items: center; z-index: 500;">
-            <div style="text-align: center;">
-                <h2 style="color: var(--accent-color);">GENERATING WORLD...</h2>
-                <p id="loading-text" style="color: #888;">Subdividing provinces...</p>
-            </div>
-        </div>
-        <div id="tooltip"></div>
-
-        <!-- PROVINCE PANEL -->
-        <div id="province-panel">
-            <div class="panel-header">
-                <span id="prov-name">Province</span>
-                <span id="prov-id" style="font-size: 0.7em; color: #666;">#000</span>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <div class="stat-row"><span>Owner:</span> <span id="prov-owner">-</span></div>
-                <div class="stat-row"><span>Garrison:</span> <span id="prov-army" style="color: #aaa;">0</span></div>
-                <div class="stat-row"><span>Armies:</span> <span id="prov-armies" style="color: #aaa;">0</span></div>
-                <div class="stat-row"><span>Fortification:</span> <span id="prov-defense" style="color: #aaa;">0%</span></div>
-            </div>
-
-            <div id="owner-actions">
-                <button class="btn btn-block" onclick="game.actions.openArmyDesigner()">🎖️ Army Designer</button>
-                <div id="army-list" style="max-height: 100px; overflow-y: auto; margin-bottom: 10px;"></div>
-                <button class="btn btn-block" onclick="game.actions.moveArmyMode()" id="btn-move-army" style="display: none;">🚀 Move Army</button>
-                <button class="btn btn-block" onclick="game.actions.recruit()">Recruit (+50 Army) <span style="float:right; color:#888">100MP</span></button>
-                <button class="btn btn-block" onclick="game.actions.build('factory')">Build Factory <span style="float:right; color:#888">500MP</span></button>
-                <button class="btn btn-block" onclick="game.actions.build('fort')">Build Fort <span style="float:right; color:#888">300MP</span></button>
-                <button class="btn btn-block btn-danger" onclick="game.actions.attackMode()">⚔ LAUNCH ASSAULT</button>
-            </div>
-            
-            <div id="admin-actions" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
-                <div id="diplomacy-section" style="display: none;">
-                    <div style="color: #aaa; font-size: 0.9em; margin-bottom: 5px;">DIPLOMACY</div>
-                    <div id="diplomacy-status" style="margin-bottom: 5px; font-size: 0.8em;">Status: Neutral</div>
-                    <button class="btn btn-block" id="btn-nap" onclick="game.diplomacy.proposeNAP()">Non-Aggression Pact</button>
-                    <button class="btn btn-block" id="btn-justify" onclick="game.diplomacy.startJustification()">Justify War Goal</button>
-                    <button class="btn btn-block btn-danger" id="btn-declare-war" onclick="game.diplomacy.declareWar()">DECLARE WAR</button>
-                </div>
-                <button class="btn btn-block" style="background: #442222; margin-top: 10px;" onclick="game.actions.cheatAnnex()">⚠ FORCE ANNEX</button>
-            </div>
-        </div>
-
-        <!-- ARMY DESIGNER MODAL -->
-        <div id="army-designer-modal" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 500px; text-align: left;">
-                <h2 style="text-align: center;">⚔️ ARMY DESIGNER</h2>
-                <p style="text-align: center; font-size: 0.9em;">Configure and deploy a new army to the selected province.</p>
-                
-                <div id="army-unit-selector" style="margin: 20px 0;">
-                    <div class="stat-row" style="margin-bottom: 10px;">
-                        <span>🚶 Infantry</span>
-                        <span><button class="btn" onclick="game.armyDesigner.adjust('infantry', -1)">-</button> <span id="unit-infantry-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('infantry', 1)">+</button></span>
-                    </div>
-                    <div class="stat-row" style="margin-bottom: 10px;">
-                        <span>🛡️ Tanks</span>
-                        <span><button class="btn" onclick="game.armyDesigner.adjust('tanks', -1)">-</button> <span id="unit-tanks-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('tanks', 1)">+</button></span>
-                    </div>
-                    <div class="stat-row" style="margin-bottom: 10px;">
-                        <span>💥 Artillery</span>
-                        <span><button class="btn" onclick="game.armyDesigner.adjust('artillery', -1)">-</button> <span id="unit-artillery-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('artillery', 1)">+</button></span>
-                    </div>
-                    <div class="stat-row" style="margin-bottom: 10px;">
-                        <span>🎯 Anti-Air</span>
-                        <span><button class="btn" onclick="game.armyDesigner.adjust('antiAir', -1)">-</button> <span id="unit-antiAir-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('antiAir', 1)">+</button></span>
-                    </div>
-                    <div class="stat-row" style="margin-bottom: 10px;">
-                        <span>🔫 Anti-Tank</span>
-                        <span><button class="btn" onclick="game.armyDesigner.adjust('antiTank', -1)">-</button> <span id="unit-antiTank-count">0</span> <button class="btn" onclick="game.armyDesigner.adjust('antiTank', 1)">+</button></span>
-                    </div>
-                </div>
-                
-                <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 15px;">
-                    <div class="stat-row"><span>Total Units:</span> <span id="army-total-units">0</span></div>
-                    <div class="stat-row"><span>Army Strength:</span> <span id="army-strength-preview">0</span></div>
-                    <div class="stat-row"><span>Total Cost:</span> <span id="army-total-cost" style="color: var(--accent-color);">0 MP</span></div>
-                </div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <button id="deploy-army-btn" class="btn btn-block" onclick="game.armyDesigner.deploy()">🚀 DEPLOY ARMY</button>
-                    <button class="btn btn-block" onclick="game.armyDesigner.close()">CANCEL</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- LOG PANEL -->
-        <div id="log-panel">
-            <div style="color: #666; font-size: 0.9em; border-bottom: 1px solid #333; margin-bottom: 5px;">COMMUNICATIONS LOG</div>
-            <div id="log-content"></div>
+    <div id="setup-overlay">
+        <div id="setup-card">
+            <h2>Choose Landing Zone</h2>
+            <p style="color:var(--muted);">Pick a safe corridor on the procedurally generated map. Corners offer safety, centers offer speed.</p>
+            <div id="start-options"></div>
+            <button id="start-confirm" class="primary" style="margin-top:16px; width:100%;">Deploy Coalition Expeditionary Force</button>
         </div>
     </div>
-</div>
 
-<!-- SETUP MODAL -->
-<div id="setup-modal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
-        <h1>SELECT YOUR NATION</h1>
-        <p>Choose a superpower to lead into the new world order.</p>
-        
-        <div id="country-selection-list" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 30px;">
-            <!-- Populated by JS -->
-        </div>
+    <div id="nuke-banner">NUKE TARGETING MODE · Select an enemy tile</div>
 
-        <div style="text-align: left; margin: 20px 0; background: rgba(0,0,0,0.3); padding: 15px;">
-            <h2>BRIEFING</h2>
-            <p><strong>DRAG</strong> to pan the map view.</p>
-            <p><strong>CLICK</strong> on a province to select it.</p>
-            <p><strong>MANAGE</strong> your economy and army using the bottom-left panel.</p>
-            <p><strong>ATTACK</strong> neighbors by selecting your province, clicking "Launch Assault", then clicking a target.</p>
-        </div>
-    </div>
-</div>
-
-<!-- GAME OVER MODAL -->
-<div id="overlay" class="modal" style="display: none;">
-    <div class="modal-content">
-        <h1 id="overlay-title">CAMPAIGN ENDED</h1>
-        <p id="overlay-msg">The world has been unified.</p>
-        <button class="btn" style="padding: 15px 40px;" onclick="location.reload()">RESTART WORLD</button>
-    </div>
-</div>
-
-<script>
-/**
- * IRON DOMINION - World Strategy Engine [R30]
- */
-
-const CONFIG = {
-    tickRate: 800,
-    colors: {
-        water: '#080808',
-        neutral: '#2a2a2a',
-        highlight: 'rgba(255, 255, 255, 0.15)',
-        selected: 'rgba(255, 215, 0, 0.5)',
-        border: '#000'
-    }
-};
-
-// --- WORLD DATA ---
-let countries = {};
-let provinces = [];
-let provincesById = {};
-const getProvince = (id) => provincesById[id];
-let game = null;
-
-// Army unit templates
-const UNIT_TYPES = {
-    infantry: { name: 'Infantry', icon: '🚶', attack: 10, defense: 15, cost: 100 },
-    tanks: { name: 'Tanks', icon: '🛡️', attack: 30, defense: 10, cost: 300 },
-    artillery: { name: 'Artillery', icon: '💥', attack: 40, defense: 5, cost: 250 },
-    antiAir: { name: 'Anti-Air', icon: '🎯', attack: 15, defense: 20, cost: 200 },
-    antiTank: { name: 'Anti-Tank', icon: '🔫', attack: 25, defense: 12, cost: 220 }
-};
-
-// Army class for deployed units
-class Army {
-    constructor(id, ownerId, provinceId, composition) {
-        this.id = id;
-        this.owner = ownerId;
-        this.provinceId = provinceId;
-        this.composition = composition; // { infantry: 5, tanks: 2, ... }
-        this.strength = this.calculateStrength();
-        this.moving = false;
-        this.targetProvinceId = null;
-    }
-    
-    calculateStrength() {
-        let str = 0;
-        for (const [type, count] of Object.entries(this.composition)) {
-            if (UNIT_TYPES[type]) {
-                str += (UNIT_TYPES[type].attack + UNIT_TYPES[type].defense) * count;
-            }
-        }
-        return str;
-    }
-    
-    getTotalUnits() {
-        return Object.values(this.composition).reduce((a, b) => a + b, 0);
-    }
-    
-    moveToProvince(targetId) {
-        const currentProv = getProvince(this.provinceId);
-        const targetProv = getProvince(targetId);
-        
-        if (!currentProv || !targetProv) return false;
-        
-        // Check if target is neighbor
-        if (!currentProv.neighbors.includes(targetId)) {
-            game.log("Target province is not adjacent!", "info");
-            return false;
-        }
-        
-        // Remove from current province
-        currentProv.armies = currentProv.armies.filter(aid => aid !== this.id);
-        
-        // Move to target
-        this.provinceId = targetId;
-        targetProv.armies.push(this.id);
-        
-        // Auto-capture: if target is enemy territory, capture it
-        if (targetProv.owner !== this.owner) {
-            const oldOwner = targetProv.owner;
-            const oldOwnerName = countries[oldOwner] ? countries[oldOwner].name : 'Unknown';
-            
-            // Check if at war (or auto-declare for now)
-            const myCountry = countries[this.owner];
-            if (myCountry && !myCountry.diplomacy.wars.includes(oldOwner)) {
-                // Auto-declare war
-                myCountry.diplomacy.wars.push(oldOwner);
-                if (countries[oldOwner]) {
-                    countries[oldOwner].diplomacy.wars.push(this.owner);
-                }
-                game.log(`War declared on ${oldOwnerName}!`, "war");
-            }
-            
-            // Capture the province
-            targetProv.owner = this.owner;
-            targetProv.army = 0;
-            
-            game.log(`Army captured ${targetProv.name} from ${oldOwnerName}!`, "war");
-            
-            // Re-render map cache since ownership changed
-            invalidateMapCache();
-        }
-        
-        game.updateUI();
-        game.render();
-        return true;
-    }
-}
-
-let armies = []; // Global armies array
-let nextArmyId = 1;
-
-// --- GENERATION ---
-
-class Province {
-    constructor(id, feature) {
-        this.id = id;
-        this.feature = feature;
-        this.owner = null; // Set externally now
-        this.name = "Province";
-        this.army = 50 + Math.floor(Math.random() * 100);
-        this.buildings = { factory: 0, fort: 0 };
-        this.armies = []; // Array of deployed army units
-        this.neighbors = [];
-        
-        // Calculate centroid and bounds
-        this.polygons = [];
-        if (feature.geometry.type === 'Polygon') {
-            this.polygons.push(feature.geometry.coordinates[0]);
-        } else if (feature.geometry.type === 'MultiPolygon') {
-            feature.geometry.coordinates.forEach(poly => this.polygons.push(poly[0]));
-        }
-        // Prebuild path for fast drawing
-        this.path = new Path2D();
-        this.polygons.forEach(poly => {
-            this.path.moveTo(poly[0][0], poly[0][1]);
-            for (let i = 1; i < poly.length; i++) {
-                this.path.lineTo(poly[i][0], poly[i][1]);
-            }
-            this.path.closePath();
-        });
-        
-        this.center = this.calculateCentroid();
-        this.bounds = this.calculateBounds();
-    }
-
-    calculateCentroid() {
-        let x = 0, y = 0, n = 0;
-        this.polygons.forEach(poly => {
-            poly.forEach(pt => {
-                x += pt[0];
-                y += pt[1];
-                n++;
-            });
-        });
-        return { x: x/n, y: y/n };
-    }
-
-    calculateBounds() {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        this.polygons.forEach(poly => {
-            poly.forEach(pt => {
-                if (pt[0] < minX) minX = pt[0];
-                if (pt[0] > maxX) maxX = pt[0];
-                if (pt[1] < minY) minY = pt[1];
-                if (pt[1] > maxY) maxY = pt[1];
-            });
-        });
-        return { minX, minY, maxX, maxY };
-    }
-}
-
-const MAJOR_NATIONS = {
-    "USA": { color: "#4488ff", name: "United States" },
-    "CHN": { color: "#ff4444", name: "China" },
-    "RUS": { color: "#cc4444", name: "Russia" },
-    "DEU": { color: "#aaaaaa", name: "Germany" },
-    "FRA": { color: "#4444ff", name: "France" },
-    "GBR": { color: "#cc8888", name: "United Kingdom" },
-    "JPN": { color: "#ffffff", name: "Japan" },
-    "BRA": { color: "#44cc44", name: "Brazil" },
-    "IND": { color: "#ff8844", name: "India" },
-    "CAN": { color: "#ffcccc", name: "Canada" },
-    "AUS": { color: "#44ccff", name: "Australia" },
-    "ITA": { color: "#44aa44", name: "Italy" },
-    "ESP": { color: "#cccc44", name: "Spain" },
-    "TUR": { color: "#44aaaa", name: "Turkey" },
-    "ZAF": { color: "#aa44aa", name: "South Africa" },
-    "EGY": { color: "#cccc88", name: "Egypt" },
-    "SAU": { color: "#448844", name: "Saudi Arabia" },
-    "IRN": { color: "#44aa88", name: "Iran" },
-    "PAK": { color: "#448888", name: "Pakistan" },
-    "IDN": { color: "#aa8844", name: "Indonesia" },
-    "KOR": { color: "#4444aa", name: "South Korea" },
-    "MEX": { color: "#88aa44", name: "Mexico" }
-};
-
-// Microstates remain single-tile; all others should use real admin-1 provinces where available.
-const MICROSTATE_COUNTRIES = new Set([
-    "LIE", "MCO", "SMR", "VAT", "AND", "SGP", "BRN", "MUS"
-]);
-
-async function generateWorldMap() {
-    provinces = [];
-    countries = {};
-    
-    const loadingText = document.getElementById('loading-text');
-    
-    try {
-        // 1. Load Countries (Metadata)
-        loadingText.innerText = "Loading country data...";
-        const worldResponse = await fetch('assets/world.json');
-        const worldData = await worldResponse.json();
-        
-        // Process countries
-        for (let feature of worldData.features) {
-            // Full RGB random color with decent saturation and brightness
-            const r = Math.floor(Math.random() * 180) + 40;
-            const g = Math.floor(Math.random() * 180) + 40;
-            const b = Math.floor(Math.random() * 180) + 40;
-            let color = `rgb(${r}, ${g}, ${b})`;
-            let name = feature.properties.name;
-            
-            if (MAJOR_NATIONS[feature.id]) {
-                color = MAJOR_NATIONS[feature.id].color;
-            }
-
-            countries[feature.id] = {
-                id: feature.id,
-                name: name,
-                color: color,
-                manpower: 1000 + Math.floor(Math.random() * 2000),
-                industry: 5 + Math.floor(Math.random() * 10),
-                ai: true,
-                aggression: Math.random(),
-                diplomacy: { pacts: [], justifications: [], wars: [] }
-            };
-        }
-
-        // 2. Load Provinces (Geometry)
-        loadingText.innerText = "Loading province data...";
-        let provData = { features: [] };
-        try {
-            const provResponse = await fetch('assets/provinces.json');
-            if (provResponse.ok) {
-                provData = await provResponse.json();
-            } else {
-                console.warn("Provinces file not found, falling back to country maps.");
-            }
-        } catch (e) {
-            console.warn("Failed to load provinces, falling back.", e);
-        }
-        
-        let provIndex = 0;
-        const countriesWithProvinces = new Set();
-        const missingProvinceCountries = [];
-        
-        // Process real provinces
-        if (provData && provData.features) {
-            for (let i = 0; i < provData.features.length; i++) {
-                const feature = provData.features[i];
-                const ownerId = feature.properties.adm0_a3;
-                
-                // Only add if owner exists in our countries list
-                if (countries[ownerId]) {
-                    createProvince(provIndex++, feature, ownerId);
-                    countriesWithProvinces.add(ownerId);
-                }
-                
-                if (i % 100 === 0) {
-                    loadingText.innerText = `Processing provinces... (${i}/${provData.features.length})`;
-                    await new Promise(r => setTimeout(r, 0));
-                }
-            }
-        }
-
-        // 3. Fallback for countries without provinces (keep microstates single-tile)
-        loadingText.innerText = "Generating national territories...";
-        for (let feature of worldData.features) {
-            if (!countriesWithProvinces.has(feature.id)) {
-                if (!MICROSTATE_COUNTRIES.has(feature.id)) {
-                    missingProvinceCountries.push(feature.id);
-                }
-                createProvince(provIndex++, feature, feature.id);
-            }
-        }
-
-        if (missingProvinceCountries.length > 0) {
-            console.warn("Countries missing province data; using single-tile fallback:", missingProvinceCountries.join(", "));
-        }
-
-        // Calculate neighbors
-        loadingText.innerText = "Calculating logistics...";
-        await new Promise(r => setTimeout(r, 10));
-
-        provinces.forEach(p1 => {
-            provinces.forEach(p2 => {
-                if (p1 === p2) return;
-                // Use bounding box check first for speed
-                if (p1.bounds.maxX < p2.bounds.minX || p1.bounds.minX > p2.bounds.maxX ||
-                    p1.bounds.maxY < p2.bounds.minY || p1.bounds.minY > p2.bounds.maxY) return;
-
-                const dx = p1.center.x - p2.center.x;
-                const dy = p1.center.y - p2.center.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                // Increased threshold for real provinces which can be larger
-                if (dist < 15) { 
-                    p1.neighbors.push(p2.id);
-                }
-            });
-        });
-        
-        console.log(`Generated ${provinces.length} provinces.`);
-        
-        // Pre-render map to cached canvas for performance
-        loadingText.innerText = "Pre-rendering map...";
-        await new Promise(r => setTimeout(r, 10));
-        preRenderMap();
-        
-        document.getElementById('loading-overlay').style.display = 'none';
-        
-    } catch (e) {
-        console.error("Failed to load map data", e);
-        document.getElementById('loading-text').innerText = "Error loading map data: " + e.message;
-    }
-}
-
-// --- TILE-BASED MAP CACHE FOR HIGH RESOLUTION ---
-const TILE_SIZE = 256;            // pixels per tile (smaller tiles, less RAM per tile)
-const MAP_SCALE = 12;             // resolution scale (pixels per world degree-ish)
-let TILE_CACHE_LIMIT = 128;       // will be resized to total tiles after init
-let mapTiles = new Map();         // LRU cache of rendered tiles
-let worldBounds = null;
-let maxTX = 0;
-let maxTY = 0;
-
-function initWorldBounds() {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    provinces.forEach(p => {
-        if (p.bounds.minX < minX) minX = p.bounds.minX;
-        if (p.bounds.maxX > maxX) maxX = p.bounds.maxX;
-        if (p.bounds.minY < minY) minY = p.bounds.minY;
-        if (p.bounds.maxY > maxY) maxY = p.bounds.maxY;
-    });
-    worldBounds = { minX, minY, maxX, maxY };
-    const tileWorldSize = TILE_SIZE / MAP_SCALE;
-    maxTX = Math.ceil((worldBounds.maxX - worldBounds.minX) / tileWorldSize);
-    maxTY = Math.ceil((worldBounds.maxY - worldBounds.minY) / tileWorldSize);
-    // Cache limit sized to full coverage
-    TILE_CACHE_LIMIT = maxTX * maxTY;
-    console.log(`World bounds: ${minX},${minY} to ${maxX},${maxY} | tiles ${maxTX}x${maxTY} (limit ${TILE_CACHE_LIMIT})`);
-}
-
-function getTileKey(tx, ty) {
-    return `${tx},${ty}`;
-}
-
-function touchTile(key, tile) {
-    // LRU: reinsert to mark as recent
-    if (mapTiles.has(key)) mapTiles.delete(key);
-    mapTiles.set(key, tile);
-    if (mapTiles.size > TILE_CACHE_LIMIT) {
-        // delete oldest
-        const oldestKey = mapTiles.keys().next().value;
-        mapTiles.delete(oldestKey);
-    }
-}
-
-function renderTile(tx, ty) {
-    const key = getTileKey(tx, ty);
-    if (mapTiles.has(key)) {
-        const t = mapTiles.get(key);
-        touchTile(key, t);
-        return t;
-    }
-    
-    const tile = document.createElement('canvas');
-    tile.width = TILE_SIZE;
-    tile.height = TILE_SIZE;
-    const ctx = tile.getContext('2d');
-    
-    // Calculate world coordinates for this tile
-    const tileWorldX = worldBounds.minX + (tx * TILE_SIZE) / MAP_SCALE;
-    const tileWorldY = worldBounds.minY + (ty * TILE_SIZE) / MAP_SCALE;
-    const tileWorldWidth = TILE_SIZE / MAP_SCALE;
-    const tileWorldHeight = TILE_SIZE / MAP_SCALE;
-    
-    // Set up transform: world coords -> tile canvas coords
-    ctx.save();
-    ctx.scale(MAP_SCALE, -MAP_SCALE);
-    ctx.translate(-tileWorldX, -tileWorldY - tileWorldHeight);
-    
-    // Draw only provinces that intersect this tile
-    const len = provinces.length;
-    for (let i = 0; i < len; i++) {
-        const p = provinces[i];
-        // Quick bounds check
-        if (p.bounds.maxX < tileWorldX || p.bounds.minX > tileWorldX + tileWorldWidth ||
-            p.bounds.maxY < tileWorldY || p.bounds.minY > tileWorldY + tileWorldHeight) {
-            continue;
-        }
-        
-        ctx.fillStyle = countries[p.owner].color;
-        ctx.fill(p.path);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 0.15;
-        ctx.stroke(p.path);
-    }
-    
-    ctx.restore();
-    touchTile(key, tile);
-    return tile;
-}
-
-function preRenderMap() {
-    initWorldBounds();
-    // Clear tile cache - tiles render on demand
-    mapTiles = new Map();
-    console.log(`Tile system ready: ${MAP_SCALE}x scale, ${TILE_SIZE}px tiles, limit ${TILE_CACHE_LIMIT}`);
-}
-
-// Invalidate and re-render the cached map (call when ownership changes)
-function invalidateMapCache() {
-    mapTiles = new Map(); // Clear all tiles - they'll re-render on demand
-}
-
-function createProvince(id, feature, ownerId) {
-    // Use real name if available
-    const name = feature.properties.name || `${countries[ownerId].name} Territory`;
-    
-    const p = new Province(id, feature);
-    p.owner = ownerId;
-    p.name = name;
-    provinces.push(p);
-    provincesById[p.id] = p;
-}
-
-const REGION_NAMES = ["Region", "Sector", "Zone", "District", "Area", "Territory", "Province", "State"];
-function generateRegionName() {
-    return REGION_NAMES[Math.floor(Math.random() * REGION_NAMES.length)] + " " + Math.floor(Math.random()*100);
-}
-
-function generateCityName(region) {
-    return "City"; // Deprecated
-}
-
-// --- GAME ENGINE ---
-
-game = {
-    canvas: null,
-    ctx: null,
-    day: 1,
-    paused: false,
-    selectedProvId: null,
-    attackMode: false,
-    moveArmyMode: false,
-    movingArmyId: null,
-    timer: null,
-    playerCountry: null,
-    camera: { x: 0, y: 0, zoom: 4, isDragging: false, lastX: 0, lastY: 0 },
-    keyState: new Set(),
-    keyPanSpeed: 40,
-
-    init: async function() {
-        this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
-        
-        const mapArea = document.getElementById('map-area');
-        this.canvas.width = mapArea.clientWidth;
-        this.canvas.height = mapArea.clientHeight;
-        
-        // Fetch username from MyTAD API
-        try {
-            const response = await fetch('/php/check-auth.php', { credentials: 'include' });
-            const data = await response.json();
-            if (data.authenticated && data.username) {
-                this.playerUsername = data.username;
-                document.getElementById('player-username').innerText = data.username;
-            } else {
-                this.playerUsername = 'Commander';
-                document.getElementById('player-username').innerText = 'Commander';
-            }
-        } catch (e) {
-            this.playerUsername = 'Commander';
-            document.getElementById('player-username').innerText = 'Commander';
-        }
-        
-        await generateWorldMap();
-        
-        // Check for country parameter in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const countryParam = urlParams.get('country');
-        
-        if (countryParam && countries[countryParam]) {
-            this.startGame(countryParam);
-        } else {
-            this.initSetup();
-        }
-        
-        this.render();
-        
-        // Input Handlers
-        this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-        this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
-        this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
-        window.addEventListener('keydown', this.handleKeyDown.bind(this));
-        window.addEventListener('keyup', this.handleKeyUp.bind(this));
-        this.startKeyLoop();
-        
-        window.addEventListener('resize', () => {
-            this.canvas.width = mapArea.clientWidth;
-            this.canvas.height = mapArea.clientHeight;
-            this.render();
-        });
-        
-        if (!this.playerCountry) {
-            this.log("Waiting for commander selection...", "info");
-        }
-    },
-
-    startKeyLoop: function() {
-        const loop = () => {
-            if (this.keyState.size > 0) {
-                let moved = false;
-                const step = this.keyPanSpeed;
-                if (this.keyState.has('arrowleft') || this.keyState.has('a')) { this.camera.x += step; moved = true; }
-                if (this.keyState.has('arrowright') || this.keyState.has('d')) { this.camera.x -= step; moved = true; }
-                if (this.keyState.has('arrowup') || this.keyState.has('w')) { this.camera.y += step; moved = true; }
-                if (this.keyState.has('arrowdown') || this.keyState.has('s')) { this.camera.y -= step; moved = true; }
-                if (moved && !this.renderPending) {
-                    this.renderPending = true;
-                    requestAnimationFrame(() => {
-                        this.render();
-                        this.renderPending = false;
-                    });
-                }
-            }
-            requestAnimationFrame(loop);
+    <script>
+    (() => {
+        const CONFIG = {
+            width: 36,
+            height: 22,
+            tile: 28,
+            tickMs: 950,
+            workerRatioDefault: 0.45,
+            defensePostRange: 5,
+            samRange: 4,
+            nukeChargePerTick: 0.8,
+            cityGold: 24,
+            tradeGold: 55,
+            warshipRaidChance: 0.18,
+            neutralCaptureBase: 380,
+            betrayalWindow: 30,
+            dominationThreshold: 0.8
         };
-        requestAnimationFrame(loop);
-    },
 
-    initSetup: function() {
-        document.getElementById('setup-modal').style.display = 'flex';
-        const container = document.getElementById('country-selection-list');
-        container.innerHTML = "";
-        
-        // Sort countries by name
-        const sortedCountries = Object.values(countries).sort((a, b) => a.name.localeCompare(b.name));
+        const TERRAIN = {
+            water: { name: 'Ocean', baseCost: 1600, defense: 0, color: '#142640', passable: false, naval: true },
+            sand: { name: 'Dunes', baseCost: 520, defense: 0.2, color: '#b9904a', passable: true },
+            plains: { name: 'Grassland', baseCost: 650, defense: 0.05, color: '#437a4a', passable: true },
+            hill: { name: 'Highlands', baseCost: 880, defense: 0.15, color: '#34543d', passable: true },
+            mountain: { name: 'Mountains', baseCost: 1250, defense: 0.35, color: '#5c4c3a', passable: true }
+        };
 
-        sortedCountries.forEach(c => {
-            if (c.id === "NEUTRAL") return;
-            
-            const btn = document.createElement('button');
-            btn.className = 'btn';
-            btn.style.padding = '10px';
-            btn.style.width = '180px';
-            btn.style.border = `1px solid ${c.color}`;
-            btn.style.textAlign = 'left';
-            btn.style.background = 'rgba(0,0,0,0.5)';
-            
-            btn.innerHTML = `
-                <div style="color: ${c.color}; font-weight: bold;">${c.name}</div>
-                <div style="font-size: 0.8em; color: #aaa;">MP: ${c.manpower}</div>
-            `;
-            
-            btn.onclick = () => this.startGame(c.id);
-            container.appendChild(btn);
-        });
-    },
+        const STRUCTURE_COST = {
+            city: { gold: 600, troops: 0 },
+            defense: { gold: 350, troops: 300 },
+            port: { gold: 500, troops: 0 },
+            sam: { gold: 450, troops: 200 },
+            silo: { gold: 1000, troops: 0 },
+            trade: { gold: 300, troops: 0 },
+            warship: { gold: 400, troops: 200 }
+        };
 
-    startGame: function(countryId) {
-        this.playerCountry = countryId;
-        document.getElementById('setup-modal').style.display = 'none';
-        document.getElementById('player-country-display').innerText = countries[countryId].name;
-        document.getElementById('player-country-display').style.color = countries[countryId].color;
-        document.getElementById('player-country-display').style.borderColor = countries[countryId].color;
-        
-        this.updateUI();
-        this.timer = setInterval(() => this.tick(), CONFIG.tickRate);
-        this.log(`Commander assigned to ${countries[countryId].name}. Operation started.`, "info");
-        this.render();
-    },
+        const canvas = document.getElementById('world');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('setup-overlay');
+        const startOptionsBox = document.getElementById('start-options');
+        const confirmBtn = document.getElementById('start-confirm');
+        const nukeBanner = document.getElementById('nuke-banner');
 
-    switchPlayer: function(countryId) {
-        this.playerCountry = countryId;
-        this.selectedProvId = null;
-        this.attackMode = false;
-        this.log(`Command switched to ${countries[countryId].name}`, "info");
-        this.updateUI();
-        this.render();
-    },
+        const labels = {
+            day: document.getElementById('day-label'),
+            pop: document.getElementById('pop-label'),
+            manpower: document.getElementById('manpower-label'),
+            gold: document.getElementById('gold-label'),
+            shield: document.getElementById('shield-label'),
+            workerPercent: document.getElementById('worker-percent'),
+            tileCount: document.getElementById('tile-count'),
+            cityCount: document.getElementById('city-count'),
+            portCount: document.getElementById('port-count'),
+            tradeCount: document.getElementById('trade-count'),
+            warshipCount: document.getElementById('warship-count'),
+            siloCount: document.getElementById('silo-count'),
+            nukeCount: document.getElementById('nuke-count'),
+            tileReadout: document.getElementById('tile-readout'),
+            navalReadout: document.getElementById('naval-readout'),
+            log: document.getElementById('intel-log')
+        };
 
-    tick: function() {
-        if (this.paused) return;
-        this.day++;
-        document.getElementById('game-day').innerText = this.day;
+        const slider = document.getElementById('worker-slider');
+        const buttons = {
+            attack: document.getElementById('btn-attack'),
+            blitz: document.getElementById('btn-blitz'),
+            city: document.getElementById('btn-city'),
+            defense: document.getElementById('btn-defense'),
+            port: document.getElementById('btn-port'),
+            sam: document.getElementById('btn-sam'),
+            silo: document.getElementById('btn-silo'),
+            trade: document.getElementById('btn-trade'),
+            warship: document.getElementById('btn-warship'),
+            nuke: document.getElementById('btn-nuke')
+        };
 
-        Object.values(countries).forEach(c => {
-            if (c.id === "NEUTRAL") return;
-            
-            // Diplomacy Updates
-            if (c.diplomacy) {
-                // Decrease pact duration
-                c.diplomacy.pacts = c.diplomacy.pacts.filter(p => {
-                    p.turns--;
-                    if (p.turns <= 0) {
-                        if (c.id === this.playerCountry) game.log(`Non-Aggression Pact with ${countries[p.with].name} expired.`, "info");
-                        return false;
-                    }
-                    return true;
-                });
+        const game = {
+            map: [],
+            startingSpots: [],
+            selectedStart: null,
+            selectedTile: null,
+            mode: 'setup',
+            tickHandle: null,
+            day: 1,
+            countries: null,
+            log: [],
+            nukeTargeting: false,
 
-                // Increase justification progress
-                c.diplomacy.justifications.forEach(j => {
-                    if (j.progress < 100) {
-                        j.progress += 2; // 2% per day
-                        if (j.progress >= 100) {
-                            j.progress = 100;
-                            if (c.id === this.playerCountry) game.log(`War Goal against ${countries[j.target].name} is ready!`, "war");
-                        }
-                    }
-                });
-            }
-
-            const myProvs = provinces.filter(p => p.owner === c.id);
-            if (myProvs.length === 0) return;
-
-            let income = 10 + (myProvs.length * 2);
-            const factories = myProvs.reduce((sum, p) => sum + p.buildings.factory, 0);
-            income += factories * 5;
-            
-            c.manpower += income;
-            c.industry = factories;
-
-            if (c.ai && c.id !== this.playerCountry) this.processAI(c, myProvs);
-        });
-
-        this.updateUI();
-        this.render();
-    },
-
-    processAI: function(country, myProvs) {
-        // AI Diplomacy Logic
-        if (country.diplomacy) {
-            // Check neighbors
-            const neighbors = new Set();
-            myProvs.forEach(p => {
-                p.neighbors.forEach(nid => {
-                    const n = provinces.find(pr => pr.id === nid);
-                    if (n.owner !== country.id) neighbors.add(n.owner);
-                });
-            });
-            
-            neighbors.forEach(targetId => {
-                if (targetId === "NEUTRAL") return;
-                const target = countries[targetId];
-                
-                // If aggressive and strong, justify war
-                if (country.aggression > 0.7 && country.manpower > target.manpower * 1.2) {
-                    // AI will NOT justify against player
-                    if (targetId !== this.playerCountry && 
-                        !country.diplomacy.wars.includes(targetId) && 
-                        !country.diplomacy.pacts.find(p => p.with === targetId) &&
-                        !country.diplomacy.justifications.find(j => j.target === targetId)) {
-                            
-                        country.diplomacy.justifications.push({ target: targetId, progress: 0 });
-                        // Only log if player is involved or nearby? For now log all major events
-                        if (targetId === this.playerCountry) {
-                            this.log(`WARNING: ${country.name} is justifying a war goal against you!`, "war");
-                        }
-                    }
-                }
-                
-                // If justification ready, declare war
-                const justification = country.diplomacy.justifications.find(j => j.target === targetId);
-                if (justification && justification.progress >= 100) {
-                    if (!country.diplomacy.wars.includes(targetId)) {
-                        country.diplomacy.wars.push(targetId);
-                        countries[targetId].diplomacy.wars.push(country.id);
-                        this.log(`${country.name} declared war on ${target.name}!`, "war");
-                        country.diplomacy.justifications = country.diplomacy.justifications.filter(j => j.target !== targetId);
-                    }
-                }
-            });
-        }
-
-        if (country.manpower > 500) {
-            const borderProv = myProvs.find(p => p.neighbors.some(n => provinces.find(pr=>pr.id===n).owner !== country.id));
-            if (borderProv) {
-                country.manpower -= 100;
-                borderProv.army += 50;
-            }
-        }
-        myProvs.forEach(p => {
-            if (p.army > 150) {
-                const targets = p.neighbors.map(nid => provinces.find(pr => pr.id === nid));
-                // Only attack if at war
-                const weakTarget = targets.find(t => {
-                    return t.owner !== country.id && 
-                           country.diplomacy.wars.includes(t.owner) && 
-                           t.army < p.army * 0.6;
-                });
-                if (weakTarget) this.resolveCombat(p, weakTarget);
-            }
-        });
-    },
-
-    togglePause: function() {
-        this.paused = !this.paused;
-        document.getElementById('btn-pause').innerText = this.paused ? "▶" : "⏸";
-    },
-
-    // --- INPUT HANDLING (PANNING & CLICKING) ---
-
-    handleMouseDown: function(e) {
-        this.camera.isDragging = true;
-        this.camera.lastX = e.clientX;
-        this.camera.lastY = e.clientY;
-        this.camera.startX = e.clientX;
-        this.camera.startY = e.clientY;
-    },
-
-    handleMouseMove: function(e) {
-        // Panning - handle first for responsiveness
-        if (this.camera.isDragging) {
-            const dx = e.clientX - this.camera.lastX;
-            const dy = e.clientY - this.camera.lastY;
-            this.camera.x += dx;
-            this.camera.y += dy;
-            this.camera.lastX = e.clientX;
-            this.camera.lastY = e.clientY;
-            
-            // Use requestAnimationFrame for smoother panning
-            if (!this.renderPending) {
-                this.renderPending = true;
-                requestAnimationFrame(() => {
-                    this.render();
-                    this.renderPending = false;
-                });
-            }
-            return; // Don't hover while dragging
-        }
-
-        // Throttle hover checks to reduce CPU load
-        const now = performance.now();
-        if (this.lastHoverCheck && now - this.lastHoverCheck < 50) return;
-        this.lastHoverCheck = now;
-
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        // Convert mouse screen coords to world coords
-        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
-        
-        const tooltip = document.getElementById('tooltip');
-        
-        let hovered = null;
-        
-        // Check bounds first, then polygon - use for loop for speed
-        const len = provinces.length;
-        for (let i = 0; i < len; i++) {
-            const p = provinces[i];
-            if (worldX >= p.bounds.minX && worldX <= p.bounds.maxX &&
-                worldY >= p.bounds.minY && worldY <= p.bounds.maxY) {
-                
-                // Use precomputed path with isPointInPath for speed
-                if (this.ctx.isPointInPath(p.path, worldX, worldY)) {
-                    hovered = p;
-                    break;
-                }
-            }
-        }
-
-        if (hovered) {
-            tooltip.style.display = 'block';
-            tooltip.style.left = (e.clientX + 15) + 'px';
-            tooltip.style.top = (e.clientY + 15) + 'px';
-            tooltip.innerHTML = `
-                <strong style="color:#fff">${hovered.name}</strong><br>
-                <span style="color:${countries[hovered.owner].color}">${countries[hovered.owner].name}</span><br>
-                Army: ${Math.floor(hovered.army)}
-            `;
-        } else {
-            tooltip.style.display = 'none';
-        }
-    },
-
-    handleMouseUp: function(e) {
-        if (!this.camera.isDragging) return;
-        this.camera.isDragging = false;
-        
-        // Check if it was a click (minimal movement)
-        const dx = e.clientX - this.camera.startX;
-        const dy = e.clientY - this.camera.startY;
-        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return; // Was a drag
-
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
-        
-        // Point in polygon check
-        let clicked = null;
-        for (let p of provinces) {
-            // Bounds check optimization
-            if (worldX < p.bounds.minX || worldX > p.bounds.maxX ||
-                worldY < p.bounds.minY || worldY > p.bounds.maxY) continue;
-
-            for (let poly of p.polygons) {
-                if (this.pointInPolygon([worldX, worldY], poly)) {
-                    clicked = p;
-                    break;
-                }
-            }
-            if (clicked) break;
-        }
-
-        if (clicked) {
-            this.handleProvinceClick(clicked);
-        } else {
-            // Deselect if clicked on water
-            this.selectedProvId = null;
-            this.attackMode = false;
-            this.moveArmyMode = false;
-            this.movingArmyId = null;
-            document.getElementById('map-area').style.cursor = 'grab';
-            this.updateUI();
-            this.render();
-        }
-    },
-
-    pointInPolygon: function(point, vs) {
-        // Ray-casting algorithm based on
-        // https://github.com/substack/point-in-polygon
-        var x = point[0], y = point[1];
-        var inside = false;
-        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-            var xi = vs[i][0], yi = vs[i][1];
-            var xj = vs[j][0], yj = vs[j][1];
-            var intersect = ((yi > y) != (yj > y))
-                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    },
-
-    handleWheel: function(e) {
-        e.preventDefault();
-        const zoomSensitivity = 0.001;
-        const delta = -e.deltaY * zoomSensitivity;
-        const factor = 1 + delta;
-        this.adjustZoom(factor, e.clientX, e.clientY);
-    },
-
-    adjustZoom: function(factor, clientX = null, clientY = null) {
-        const newZoom = Math.min(Math.max(this.camera.zoom * factor, 1), 50);
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = clientX === null ? this.canvas.width / 2 : clientX - rect.left;
-        const mouseY = clientY === null ? this.canvas.height / 2 : clientY - rect.top;
-
-        const worldX = (mouseX - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        const worldY = -(mouseY - this.camera.y - this.canvas.height/2) / this.camera.zoom;
-
-        this.camera.x = mouseX - (worldX * newZoom + this.canvas.width/2);
-        this.camera.y = mouseY - (worldY * -newZoom + this.canvas.height/2);
-        this.camera.zoom = newZoom;
-
-        if (!this.renderPending) {
-            this.renderPending = true;
-            requestAnimationFrame(() => {
+            init() {
+                canvas.width = CONFIG.width * CONFIG.tile;
+                canvas.height = CONFIG.height * CONFIG.tile;
+                this.generateMap();
+                this.identifyStartingSpots();
+                this.renderStartOptions();
+                this.bindEvents();
                 this.render();
-                this.renderPending = false;
-            });
-        }
-    },
+                this.pushLog('World seed generated. Awaiting landing orders.');
+            },
 
-    handleKeyDown: function(e) {
-        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+            bindEvents() {
+                canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+                slider.addEventListener('input', () => this.handleWorkerRatio());
+                confirmBtn.addEventListener('click', () => this.confirmStartingSpot());
 
-        const k = e.key.toLowerCase();
-        if (k === ' ') { e.preventDefault(); this.togglePause(); return; }
-        if (k === 'escape') { this.attackMode = false; this.selectedProvId = null; this.updateUI(); this.render(); return; }
-        if (k === 'enter') { this.attackMode = !this.attackMode; this.updateUI(); this.render(); return; }
-        if (k === '+' || k === '=' || k === 'add') { this.adjustZoom(1.1); return; }
-        if (k === '-' || k === '_' || k === 'subtract') { this.adjustZoom(1/1.1); return; }
+                buttons.attack.onclick = () => this.playerAttack(0.5);
+                buttons.blitz.onclick = () => this.playerAttack(0.75);
+                buttons.city.onclick = () => this.buildStructure('city');
+                buttons.defense.onclick = () => this.buildStructure('defense');
+                buttons.port.onclick = () => this.buildStructure('port');
+                buttons.sam.onclick = () => this.buildStructure('sam');
+                buttons.silo.onclick = () => this.buildStructure('silo');
+                buttons.trade.onclick = () => this.launchTradeFleet();
+                buttons.warship.onclick = () => this.buildWarship();
+                buttons.nuke.onclick = () => this.toggleNukeMode();
+            },
 
-        this.keyState.add(k);
-    },
-
-    handleKeyUp: function(e) {
-        const k = e.key.toLowerCase();
-        this.keyState.delete(k);
-    },
-
-    handleProvinceClick: function(clicked) {
-        // Handle move army mode
-        if (this.moveArmyMode && this.movingArmyId !== null) {
-            const army = armies.find(a => a.id === this.movingArmyId);
-            if (army) {
-                army.moveToProvince(clicked.id);
-            }
-            this.moveArmyMode = false;
-            this.movingArmyId = null;
-            document.getElementById('map-area').style.cursor = 'grab';
-            return;
-        }
-        
-        if (this.attackMode && this.selectedProvId !== null) {
-            const source = getProvince(this.selectedProvId);
-            if (source.neighbors.includes(clicked.id)) {
-                this.resolveCombat(source, clicked);
-                this.attackMode = false;
-                document.getElementById('map-area').style.cursor = 'grab';
-            } else {
-                this.log("Target out of range!", "info");
-            }
-        } else {
-            this.selectedProvId = clicked.id;
-            this.attackMode = false;
-            this.moveArmyMode = false;
-            document.getElementById('map-area').style.cursor = 'grab';
-        }
-        this.updateUI();
-        this.render();
-    },
-
-    diplomacy: {
-        proposeNAP: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            const targetId = p.owner;
-            const myId = game.playerCountry;
-            
-            if (targetId === myId) return;
-            
-            const me = countries[myId];
-            const them = countries[targetId];
-            
-            // Check if already exists
-            if (me.diplomacy.pacts.find(p => p.with === targetId)) {
-                game.log(`Already have a pact with ${them.name}`, "info");
-                return;
-            }
-            
-            // Simple AI acceptance chance
-            if (them.aggression > 0.8) {
-                game.log(`${them.name} refused the Non-Aggression Pact.`, "war");
-            } else {
-                me.diplomacy.pacts.push({ type: 'NAP', with: targetId, turns: 30 });
-                them.diplomacy.pacts.push({ type: 'NAP', with: myId, turns: 30 });
-                game.log(`Signed Non-Aggression Pact with ${them.name} (30 days)`, "peace");
-                game.updateUI();
-            }
-        },
-        
-        startJustification: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            const targetId = p.owner;
-            const myId = game.playerCountry;
-            
-            if (targetId === myId) return;
-            
-            const me = countries[myId];
-            
-            if (me.diplomacy.justifications.find(j => j.target === targetId)) {
-                game.log(`Already justifying against ${countries[targetId].name}`, "info");
-                return;
-            }
-            
-            me.diplomacy.justifications.push({ target: targetId, progress: 0 });
-            game.log(`Started justifying war goal against ${countries[targetId].name}...`, "war");
-            game.updateUI();
-        },
-        
-        declareWar: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            const targetId = p.owner;
-            const myId = game.playerCountry;
-            
-            if (targetId === myId) return;
-            
-            const me = countries[myId];
-            const justification = me.diplomacy.justifications.find(j => j.target === targetId);
-            
-            if (!justification || justification.progress < 100) {
-                game.log(`Cannot declare war! Justification not ready.`, "info");
-                return;
-            }
-            
-            // Check NAP
-            if (me.diplomacy.pacts.find(p => p.with === targetId)) {
-                game.log(`Cannot declare war! Non-Aggression Pact active.`, "info");
-                return;
-            }
-            
-            if (!me.diplomacy.wars.includes(targetId)) {
-                me.diplomacy.wars.push(targetId);
-                countries[targetId].diplomacy.wars.push(myId);
-                game.log(`WAR DECLARED ON ${countries[targetId].name}!`, "war");
-                
-                // Remove justification after use
-                me.diplomacy.justifications = me.diplomacy.justifications.filter(j => j.target !== targetId);
-                game.updateUI();
-            }
-        }
-    },
-
-    actions: {
-        recruit: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            const c = countries[game.playerCountry];
-            if (p.owner !== game.playerCountry) return;
-            if (c.manpower >= 100) {
-                c.manpower -= 100;
-                p.army += 50;
-                game.updateUI();
-                game.render();
-                game.log(`Reinforcements arrived in ${p.name}`, "info");
-            }
-        },
-        build: function(type) {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            const c = countries[game.playerCountry];
-            if (p.owner !== game.playerCountry) return;
-            const cost = type === 'factory' ? 500 : 300;
-            if (c.manpower >= cost) {
-                c.manpower -= cost;
-                p.buildings[type]++;
-                game.updateUI();
-                game.render();
-                game.log(`Construction complete in ${p.name}`, "info");
-            }
-        },
-        attackMode: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            if (p.owner !== game.playerCountry) return;
-            game.attackMode = true;
-            document.getElementById('map-area').style.cursor = 'crosshair';
-            game.log("Select target province...", "info");
-        },
-        cheatAnnex: function() {
-            if (game.selectedProvId === null) return;
-            const p = provinces.find(prov => prov.id === game.selectedProvId);
-            if (p.owner === game.playerCountry) return;
-            const oldOwner = p.owner;
-            p.owner = game.playerCountry;
-            p.army = 100;
-            game.log(`CHEAT: Annexed ${p.name} from ${countries[oldOwner].name}`, "war");
-            invalidateMapCache();
-            game.updateUI();
-            game.render();
-        },
-        openArmyDesigner: function() {
-            if (game.selectedProvId === null) return;
-            const p = getProvince(game.selectedProvId);
-            if (p.owner !== game.playerCountry) return;
-            game.armyDesigner.open(p.id);
-        },
-        moveArmyMode: function() {
-            if (game.selectedProvId === null) return;
-            const p = getProvince(game.selectedProvId);
-            if (!p || p.owner !== game.playerCountry) return;
-            if (p.armies.length === 0) {
-                game.log("No armies to move!", "info");
-                return;
-            }
-            game.moveArmyMode = true;
-            game.movingArmyId = p.armies[0]; // Move first army
-            document.getElementById('map-area').style.cursor = 'crosshair';
-            game.log("Select destination province (must be adjacent)...", "info");
-        }
-    },
-    
-    armyDesigner: {
-        currentProvinceId: null,
-        composition: { infantry: 10, tanks: 0, artillery: 0, antiAir: 0, antiTank: 0 },
-        
-        open: function(provinceId) {
-            this.currentProvinceId = provinceId;
-            this.composition = { infantry: 10, tanks: 0, artillery: 0, antiAir: 0, antiTank: 0 };
-            this.updateUI();
-            document.getElementById('army-designer-modal').style.display = 'flex';
-        },
-        
-        close: function() {
-            document.getElementById('army-designer-modal').style.display = 'none';
-            this.currentProvinceId = null;
-        },
-        
-        adjust: function(unitType, delta) {
-            const current = this.composition[unitType] || 0;
-            this.composition[unitType] = Math.max(0, current + delta);
-            this.updateUI();
-        },
-        
-        updateUI: function() {
-            let totalCost = 0;
-            let totalStrength = 0;
-            
-            Object.keys(this.composition).forEach(type => {
-                const count = this.composition[type];
-                const unit = UNIT_TYPES[type];
-                if (unit && count > 0) {
-                    totalCost += count * unit.cost;
-                    totalStrength += count * (unit.attack + unit.defense);
+            generateMap() {
+                this.map = [];
+                for (let y = 0; y < CONFIG.height; y++) {
+                    const row = [];
+                    for (let x = 0; x < CONFIG.width; x++) {
+                        const noise = this.multiNoise(x, y);
+                        let type;
+                        if (noise < 0.32) type = 'water';
+                        else if (noise < 0.42) type = 'sand';
+                        else if (noise < 0.64) type = 'plains';
+                        else if (noise < 0.82) type = 'hill';
+                        else type = 'mountain';
+                        row.push({
+                            x,
+                            y,
+                            type,
+                            owner: null,
+                            structures: { city: false, defense: false, port: false, sam: false, silo: false },
+                            navBlocked: false
+                        });
+                    }
+                    this.map.push(row);
                 }
-                
-                const countEl = document.getElementById(`unit-${type}-count`);
-                if (countEl) countEl.innerText = count;
-            });
-            
-            document.getElementById('army-total-cost').innerText = totalCost;
-            document.getElementById('army-strength-preview').innerText = totalStrength;
-            
-            const playerCountry = countries[game.playerCountry];
-            const deployBtn = document.getElementById('deploy-army-btn');
-            if (playerCountry && totalCost > playerCountry.manpower) {
-                deployBtn.disabled = true;
-                deployBtn.style.opacity = '0.5';
-            } else {
-                deployBtn.disabled = false;
-                deployBtn.style.opacity = '1';
-            }
-        },
-        
-        deploy: function() {
-            if (this.currentProvinceId === null) return;
-            
-            const prov = getProvince(this.currentProvinceId);
-            if (!prov || prov.owner !== game.playerCountry) return;
-            
-            let totalCost = 0;
-            let totalUnits = 0;
-            Object.keys(this.composition).forEach(type => {
-                const count = this.composition[type];
-                if (UNIT_TYPES[type] && count > 0) {
-                    totalCost += count * UNIT_TYPES[type].cost;
-                    totalUnits += count;
+            },
+
+            multiNoise(x, y) {
+                const value = this.simplex(x * 0.18, y * 0.18) * 0.6 + this.simplex((x + 50) * 0.05, (y - 32) * 0.05) * 0.4;
+                const latGradient = (y / CONFIG.height) - 0.4;
+                return Math.min(1, Math.max(0, value - latGradient * 0.2));
+            },
+
+            simplex(x, y) {
+                const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+                return s - Math.floor(s);
+            },
+
+            identifyStartingSpots() {
+                const candidates = [];
+                for (let y = 1; y < CONFIG.height - 1; y++) {
+                    for (let x = 1; x < CONFIG.width - 1; x++) {
+                        const tile = this.map[y][x];
+                        if (tile.type === 'water' || tile.type === 'mountain') continue;
+                        const coast = this.neighbors(tile).some(t => t.type === 'water');
+                        const rating = this.evaluateStart(x, y, coast);
+                        candidates.push({ tile, rating, coast });
+                    }
                 }
-            });
-            
-            if (totalUnits === 0) {
-                game.log("Cannot deploy empty army!", "info");
-                return;
-            }
-            
-            const playerCountry = countries[game.playerCountry];
-            if (totalCost > playerCountry.manpower) {
-                game.log("Not enough manpower!", "info");
-                return;
-            }
-            
-            // Deduct cost
-            playerCountry.manpower -= totalCost;
-            
-            // Create army
-            const army = new Army(nextArmyId++, game.playerCountry, this.currentProvinceId, {...this.composition});
-            armies.push(army);
-            prov.armies.push(army.id);
-            
-            game.log(`Deployed army (${totalUnits} units) to ${prov.name}`, "info");
-            this.close();
-            game.updateUI();
-            game.render();
-        }
-    },
+                candidates.sort((a, b) => b.rating - a.rating);
+                this.startingSpots = candidates.slice(0, 6);
+            },
 
-    resolveCombat: function(attackerProv, defenderProv) {
-        // Check if at war
-        const attackerCountry = countries[attackerProv.owner];
-        const defenderCountry = countries[defenderProv.owner];
-        
-        if (attackerProv.owner === this.playerCountry) {
-             if (!attackerCountry.diplomacy.wars.includes(defenderProv.owner)) {
-                 this.log("You must declare war first!", "info");
-                 return;
-             }
-        } else {
-            // AI vs AI or AI vs Player logic
-            // For now, assume AI declares war instantly if it attacks (simplified)
-            if (!attackerCountry.diplomacy.wars.includes(defenderProv.owner)) {
-                attackerCountry.diplomacy.wars.push(defenderProv.owner);
-                defenderCountry.diplomacy.wars.push(attackerProv.owner);
-                this.log(`${attackerCountry.name} declared war on ${defenderCountry.name}!`, "war");
-            }
-        }
+            evaluateStart(x, y, coast) {
+                let score = 0;
+                const radius = 4;
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const tx = x + dx;
+                        const ty = y + dy;
+                        if (tx < 0 || ty < 0 || tx >= CONFIG.width || ty >= CONFIG.height) continue;
+                        const tile = this.map[ty][tx];
+                        if (tile.type === 'plains') score += 2;
+                        if (tile.type === 'sand') score += 1;
+                        if (tile.type === 'hill') score += 0.5;
+                        if (tile.type === 'mountain') score -= 1;
+                        if (tile.type === 'water') score -= 0.5;
+                    }
+                }
+                if (coast) score += 3;
+                const edgeBuffer = Math.min(x, y, CONFIG.width - x, CONFIG.height - y);
+                score += edgeBuffer * 0.4;
+                return score;
+            },
 
-        if (attackerProv.army < 20) return;
-        const attackForce = Math.floor(attackerProv.army * 0.8);
-        attackerProv.army -= attackForce;
-        let defenseMult = 1.0 + (defenderProv.buildings.fort * 0.2);
-        const defenseForce = defenderProv.army * defenseMult;
-        const attackRoll = attackForce * (0.8 + Math.random() * 0.4);
-        const defenseRoll = defenseForce * (0.8 + Math.random() * 0.4);
-
-        if (attackRoll > defenseRoll) {
-            const remaining = Math.floor(attackForce * 0.6);
-            defenderProv.owner = attackerProv.owner;
-            defenderProv.army = remaining;
-            defenderProv.buildings.fort = 0;
-            this.log(`${countries[attackerProv.owner].name} seized ${defenderProv.name}`, "war");
-            invalidateMapCache(); // Re-render cached map since ownership changed
-        } else {
-            const remaining = Math.floor(defenderProv.army * 0.7);
-            defenderProv.army = remaining;
-            this.log(`Assault on ${defenderProv.name} repelled`, "info");
-        }
-        this.render();
-        this.updateUI();
-    },
-
-    log: function(msg, type) {
-        const panel = document.getElementById('log-content');
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${type}`;
-        entry.innerText = `D${this.day}: ${msg}`;
-        panel.prepend(entry);
-    },
-
-    updateUI: function() {
-        if (!this.playerCountry || !countries[this.playerCountry]) return;
-        const p = countries[this.playerCountry];
-        document.getElementById('player-manpower').innerText = Math.floor(p.manpower);
-        document.getElementById('player-industry').innerText = p.industry;
-        document.getElementById('player-provinces').innerText = provinces.filter(prov => prov.owner === this.playerCountry).length;
-
-        const provPanel = document.getElementById('province-panel');
-        if (this.selectedProvId !== null) {
-            const prov = getProvince(this.selectedProvId);
-            provPanel.style.display = 'block';
-            document.getElementById('prov-id').innerText = `#${prov.id}`;
-            document.getElementById('prov-name').innerText = prov.name;
-            
-            const owner = countries[prov.owner];
-            const ownerEl = document.getElementById('prov-owner');
-            ownerEl.innerText = owner.name;
-            ownerEl.style.color = owner.color;
-            
-            document.getElementById('prov-army').innerText = Math.floor(prov.army);
-            document.getElementById('prov-defense').innerText = (prov.buildings.fort * 20) + "%";
-            document.getElementById('prov-armies').innerText = prov.armies.length;
-
-            const isMine = prov.owner === this.playerCountry;
-            document.getElementById('owner-actions').style.display = isMine ? 'block' : 'none';
-            
-            // Update army list and move button
-            if (isMine) {
-                const armyListEl = document.getElementById('army-list');
-                const moveBtn = document.getElementById('btn-move-army');
-                
-                if (prov.armies.length > 0) {
-                    moveBtn.style.display = 'block';
-                    armyListEl.innerHTML = '';
-                    prov.armies.forEach(armyId => {
-                        const army = armies.find(a => a.id === armyId);
-                        if (army) {
-                            const div = document.createElement('div');
-                            div.style.cssText = 'font-size: 0.8em; color: #aaa; padding: 2px 0; border-bottom: 1px solid #222;';
-                            div.innerHTML = `⚔️ Army #${army.id}: ${army.getTotalUnits()} units (Str: ${army.calculateStrength()})`;
-                            armyListEl.appendChild(div);
-                        }
+            renderStartOptions() {
+                startOptionsBox.innerHTML = '';
+                this.startingSpots.forEach((spot, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'start-option';
+                    card.innerHTML = `
+                        <strong>Zone ${idx + 1}</strong><br>
+                        ${spot.coast ? 'Coastal' : 'Inland'} · Score ${spot.rating.toFixed(1)}<br>
+                        Terrain mix: ${this.describeStart(spot.tile)}
+                    `;
+                    card.addEventListener('click', () => {
+                        document.querySelectorAll('.start-option').forEach(el => el.classList.remove('selected'));
+                        card.classList.add('selected');
+                        this.selectedStart = spot.tile;
                     });
-                } else {
-                    moveBtn.style.display = 'none';
-                    armyListEl.innerHTML = '<div style="font-size: 0.8em; color: #555;">No armies stationed</div>';
+                    startOptionsBox.appendChild(card);
+                });
+            },
+
+            describeStart(tile) {
+                const neighbors = this.neighbors(tile);
+                const stats = { plains: 0, sand: 0, hill: 0 };
+                neighbors.forEach(n => {
+                    if (stats[n.type] !== undefined) stats[n.type]++;
+                });
+                return `${stats.plains} plains · ${stats.sand} dunes · ${stats.hill} hills`;
+            },
+
+            confirmStartingSpot() {
+                if (!this.selectedStart) {
+                    this.pushLog('Select a landing zone first.');
+                    return;
                 }
-            }
-            
-            // Diplomacy UI Logic
-            const diplomacySection = document.getElementById('diplomacy-section');
-            const adminActions = document.getElementById('admin-actions');
-            
-            if (!isMine) {
-                diplomacySection.style.display = 'block';
-                const me = countries[this.playerCountry];
-                const targetId = prov.owner;
-                
-                // Update Status Text
-                let status = "Neutral";
-                if (me.diplomacy.wars.includes(targetId)) status = "AT WAR";
-                else if (me.diplomacy.pacts.find(p => p.with === targetId)) status = "Non-Aggression Pact";
-                
-                document.getElementById('diplomacy-status').innerText = `Status: ${status}`;
-                document.getElementById('diplomacy-status').style.color = status === "AT WAR" ? "#ff4444" : (status === "Neutral" ? "#aaa" : "#44ff44");
-                
-                // Update Buttons
-                const napBtn = document.getElementById('btn-nap');
-                const justifyBtn = document.getElementById('btn-justify');
-                const warBtn = document.getElementById('btn-declare-war');
-                
-                // NAP Button
-                const hasNap = me.diplomacy.pacts.find(p => p.with === targetId);
-                napBtn.disabled = hasNap || me.diplomacy.wars.includes(targetId);
-                napBtn.innerText = hasNap ? `NAP Active (${hasNap.turns}d)` : "Non-Aggression Pact";
-                
-                // Justify Button
-                const justification = me.diplomacy.justifications.find(j => j.target === targetId);
-                justifyBtn.disabled = !!justification || me.diplomacy.wars.includes(targetId);
-                justifyBtn.innerText = justification ? `Justifying... ${Math.floor(justification.progress)}%` : "Justify War Goal";
-                
-                // War Button
-                warBtn.disabled = !justification || justification.progress < 100 || hasNap || me.diplomacy.wars.includes(targetId);
-                
-            } else {
-                diplomacySection.style.display = 'none';
-            }
-            
-            // Admin actions always visible for now (or move cheat annex to bottom)
-            // document.getElementById('admin-actions').style.display = !isMine ? 'block' : 'none';
-        } else {
-            provPanel.style.display = 'none';
-        }
-    },
+                this.deployCountries();
+                overlay.classList.add('hidden');
+                this.mode = 'running';
+                this.tickHandle = setInterval(() => this.tick(), CONFIG.tickMs);
+                this.pushLog('Coalition forces established beachhead.');
+            },
 
-    render: function() {
-        const ctx = this.ctx;
-        ctx.save();
-        ctx.fillStyle = CONFIG.colors.water;
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            deployCountries() {
+                const playerColor = '#ffd571';
+                const enemyColor = '#61c0ff';
+                const aiStart = this.pickAIOpposite();
 
-        // Apply Camera
-        ctx.translate(this.camera.x, this.camera.y);
-        ctx.scale(this.camera.zoom, this.camera.zoom);
-        
-        // Center map roughly
-        ctx.translate(this.canvas.width/2 / this.camera.zoom, this.canvas.height/2 / this.camera.zoom);
-        // Flip Y because canvas Y is down, Lat is up
-        ctx.scale(1, -1);
+                this.countries = {
+                    PLAYER: this.createCountry('Coalition', playerColor, this.selectedStart),
+                    AI: this.createCountry('Eigen Dominion', enemyColor, aiStart)
+                };
 
-        // Calculate Viewport Bounds in World Coordinates
-        const minWorldX = (0 - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        const maxWorldX = (this.canvas.width - this.camera.x - this.canvas.width/2) / this.camera.zoom;
-        const maxWorldY = -(0 - this.camera.y - this.canvas.height/2) / this.camera.zoom;
-        const minWorldY = -(this.canvas.height - this.camera.y - this.canvas.height/2) / this.camera.zoom;
+                this.claimInitialTerritory('PLAYER', this.selectedStart);
+                this.claimInitialTerritory('AI', aiStart);
+            },
 
-        // Draw visible tiles from tile cache
-        if (worldBounds) {
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            ctx.scale(1, -1);
-            
-            // Calculate which tiles are visible
-            const tileWorldSize = TILE_SIZE / MAP_SCALE;
-            const startTX = Math.max(0, Math.floor((minWorldX - worldBounds.minX) / tileWorldSize));
-            const endTX = Math.min(maxTX, Math.ceil((maxWorldX - worldBounds.minX) / tileWorldSize));
-            const startTY = Math.max(0, Math.floor((minWorldY - worldBounds.minY) / tileWorldSize));
-            const endTY = Math.min(maxTY, Math.ceil((maxWorldY - worldBounds.minY) / tileWorldSize));
-            
-            // Draw only visible tiles
-            for (let ty = startTY; ty <= endTY; ty++) {
-                for (let tx = startTX; tx <= endTX; tx++) {
-                    const tile = renderTile(tx, ty);
-                    const worldX = worldBounds.minX + (tx * TILE_SIZE) / MAP_SCALE;
-                    const worldY = worldBounds.minY + (ty * TILE_SIZE) / MAP_SCALE;
-                    ctx.drawImage(
-                        tile,
-                        worldX, -(worldY + tileWorldSize),
-                        tileWorldSize, tileWorldSize
+            createCountry(name, color, tile) {
+                return {
+                    id: name,
+                    color,
+                    population: 15000,
+                    gold: 550,
+                    workerRatio: CONFIG.workerRatioDefault,
+                    nukes: 0,
+                    nukeProgress: 0,
+                    warships: 0,
+                    tradeShips: 1,
+                    betrayalTimer: 0,
+                    morale: 1,
+                    cooldown: 0,
+                    targetHint: null,
+                    start: tile
+                };
+            },
+
+            pickAIOpposite() {
+                const farthest = this.startingSpots.reduce((best, spot) => {
+                    const dx = spot.tile.x - this.selectedStart.x;
+                    const dy = spot.tile.y - this.selectedStart.y;
+                    const dist = dx * dx + dy * dy;
+                    if (!best || dist > best.dist) return { tile: spot.tile, dist };
+                    return best;
+                }, null);
+                return farthest ? { ...farthest.tile } : this.startingSpots[1].tile;
+            },
+
+            claimInitialTerritory(owner, tile) {
+                const radius = 2;
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const tx = tile.x + dx;
+                        const ty = tile.y + dy;
+                        if (!this.inBounds(tx, ty)) continue;
+                        const t = this.map[ty][tx];
+                        if (t.type === 'water') continue;
+                        if (Math.abs(dx) + Math.abs(dy) > radius + 1) continue;
+                        t.owner = owner;
+                        if (dx === 0 && dy === 0) {
+                            t.structures.city = true;
+                        }
+                    }
+                }
+            },
+
+            handleCanvasClick(event) {
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.floor((event.clientX - rect.left) / CONFIG.tile);
+                const y = Math.floor((event.clientY - rect.top) / CONFIG.tile);
+                if (!this.inBounds(x, y)) return;
+                const tile = this.map[y][x];
+                if (this.nukeTargeting) {
+                    this.fireNuke(tile);
+                    return;
+                }
+                this.selectedTile = tile;
+                this.updateTilePanel();
+                this.render();
+            },
+
+            handleWorkerRatio() {
+                if (!this.countries) return;
+                const ratio = Number(slider.value) / 100;
+                this.countries.PLAYER.workerRatio = ratio;
+                labels.workerPercent.textContent = `${Math.round(ratio * 100)}%`;
+                this.pushLog(`Adjusted worker ratio to ${(ratio * 100).toFixed(0)}%. Growth sweet spot is ~42%.`);
+            },
+
+            playerAttack(commitRatio) {
+                if (!this.selectedTile) {
+                    this.pushLog('Select a tile to attack.', 'danger');
+                    return;
+                }
+                this.issueAttack('PLAYER', this.selectedTile, commitRatio);
+            },
+
+            issueAttack(attackerId, tile, commitRatio) {
+                const attacker = this.countries[attackerId];
+                if (!attacker) return;
+                if (tile.owner === attackerId) {
+                    if (attackerId === 'PLAYER') this.pushLog('Tile already secured.');
+                    return;
+                }
+                if (!this.tileAdjacentTo(tile, attackerId)) {
+                    if (attackerId === 'PLAYER') this.pushLog('Need a contiguous front to attack.', 'danger');
+                    return;
+                }
+
+                const defenderId = tile.owner;
+                const defender = defenderId ? this.countries[defenderId] : null;
+                const attackTroops = Math.max(1, Math.floor(this.getManpower(attacker) * commitRatio));
+                if (attackTroops < 1) {
+                    if (attackerId === 'PLAYER') this.pushLog('Not enough manpower ready.', 'danger');
+                    return;
+                }
+
+                const baseCost = TERRAIN[tile.type].baseCost || CONFIG.neutralCaptureBase;
+                const defenseBonus = TERRAIN[tile.type].defense;
+                const defensePost = defender && this.defenseCoverage(tile, defenderId);
+                const shield = defender ? this.computeShield(defender) : 0;
+
+                const defenderLoss = defender ? Math.max(10, Math.round(shield / 10)) : Math.round(baseCost * 0.15);
+                let attackerLoss = Math.round(defenderLoss * (1 + defenseBonus));
+                if (defensePost) attackerLoss *= 6;
+                if (tile.structures.sam && defender) attackerLoss *= 1.2;
+
+                const costToCapture = baseCost + (defender ? shield * 0.2 : 0);
+                const success = attackTroops - attackerLoss > costToCapture * 0.35;
+
+                attacker.population = Math.max(0, attacker.population - attackerLoss);
+                if (defender) defender.population = Math.max(0, defender.population - defenderLoss);
+
+                if (success) {
+                    tile.owner = attackerId;
+                    if (defender) {
+                        tile.structures.city = false;
+                        tile.structures.port = false;
+                        tile.structures.defense = false;
+                        tile.structures.sam = false;
+                        tile.structures.silo = false;
+                    }
+                    if (attackerId === 'PLAYER') {
+                        this.pushLog(`Captured ${TERRAIN[tile.type].name}. Losses: ${attackerLoss}.`);
+                    }
+                } else if (attackerId === 'PLAYER') {
+                    this.pushLog('Assault stalled. Wait for manpower or soften defenses.', 'danger');
+                }
+
+                if (defenderId === 'PLAYER' && !success) {
+                    this.countries.PLAYER.betrayalTimer = CONFIG.betrayalWindow;
+                }
+
+                this.checkVictory();
+                this.updatePanels();
+                this.render();
+            },
+
+            defenseCoverage(tile, owner) {
+                for (let y = Math.max(0, tile.y - CONFIG.defensePostRange); y <= Math.min(CONFIG.height - 1, tile.y + CONFIG.defensePostRange); y++) {
+                    for (let x = Math.max(0, tile.x - CONFIG.defensePostRange); x <= Math.min(CONFIG.width - 1, tile.x + CONFIG.defensePostRange); x++) {
+                        const t = this.map[y][x];
+                        if (t.owner !== owner) continue;
+                        if (!t.structures.defense) continue;
+                        const dist = Math.hypot(tile.x - x, tile.y - y);
+                        if (dist <= CONFIG.defensePostRange) return true;
+                    }
+                }
+                return false;
+            },
+
+            buildStructure(kind) {
+                if (!this.selectedTile || this.selectedTile.owner !== 'PLAYER') {
+                    this.pushLog('Select one of your tiles first.', 'danger');
+                    return;
+                }
+                if (this.selectedTile.type === 'water' && kind !== 'port') {
+                    this.pushLog('Water tiles only support ports.', 'danger');
+                    return;
+                }
+                if (kind === 'port' && !this.neighbors(this.selectedTile).some(t => t.type === 'water')) {
+                    this.pushLog('Need coastline adjacency for a port.', 'danger');
+                    return;
+                }
+                if (this.selectedTile.structures[kind]) {
+                    this.pushLog('Structure already present.');
+                    return;
+                }
+                const cost = STRUCTURE_COST[kind];
+                const player = this.countries.PLAYER;
+                if (player.gold < cost.gold || this.getManpower(player) < cost.troops) {
+                    this.pushLog('Insufficient resources.', 'danger');
+                    return;
+                }
+                player.gold -= cost.gold;
+                player.population = Math.max(0, player.population - cost.troops);
+                this.selectedTile.structures[kind] = true;
+                if (kind === 'port') player.tradeShips += 1;
+                if (kind === 'silo') this.pushLog('Silo queued nuclear stockpiling.');
+                this.updatePanels();
+                this.render();
+            },
+
+            launchTradeFleet() {
+                const player = this.countries.PLAYER;
+                if (player.gold < STRUCTURE_COST.trade.gold) {
+                    this.pushLog('Need 300 gold for a trade fleet.', 'danger');
+                    return;
+                }
+                player.gold -= STRUCTURE_COST.trade.gold;
+                player.tradeShips += 1;
+                this.pushLog('Trade convoy added. Protect it with warships.');
+                this.updatePanels();
+            },
+
+            buildWarship() {
+                const player = this.countries.PLAYER;
+                if (player.gold < STRUCTURE_COST.warship.gold || this.getManpower(player) < STRUCTURE_COST.warship.troops) {
+                    this.pushLog('Need 400 gold and 200 troops for a warship.', 'danger');
+                    return;
+                }
+                player.gold -= STRUCTURE_COST.warship.gold;
+                player.population = Math.max(0, player.population - STRUCTURE_COST.warship.troops);
+                player.warships += 1;
+                this.pushLog('Warship ready. Use it to contest trade lanes.');
+                this.updatePanels();
+            },
+
+            toggleNukeMode() {
+                const player = this.countries.PLAYER;
+                if (!player || player.nukes <= 0) {
+                    this.pushLog('No nukes ready.', 'danger');
+                    return;
+                }
+                this.nukeTargeting = !this.nukeTargeting;
+                nukeBanner.classList.toggle('visible', this.nukeTargeting);
+            },
+
+            fireNuke(tile) {
+                if (!tile.owner || tile.owner === 'PLAYER') {
+                    this.pushLog('Choose an enemy tile for nukes.', 'danger');
+                    return;
+                }
+                const player = this.countries.PLAYER;
+                if (player.nukes <= 0) {
+                    this.nukeTargeting = false;
+                    nukeBanner.classList.remove('visible');
+                    return;
+                }
+                player.nukes -= 1;
+                const defender = this.countries[tile.owner];
+                const intercepted = this.checkSAM(tile, tile.owner);
+                if (intercepted) {
+                    this.pushLog('SAM intercepted the atomic strike!', 'danger');
+                    this.nukeTargeting = false;
+                    nukeBanner.classList.remove('visible');
+                    return;
+                }
+
+                defender.population = Math.max(0, defender.population - 1200);
+                tile.structures.city = false;
+                tile.structures.sam = false;
+                tile.structures.silo = false;
+                tile.structures.defense = false;
+                tile.owner = null;
+                this.pushLog('Nuclear strike successful. Target neutralized.', 'danger');
+                this.nukeTargeting = false;
+                nukeBanner.classList.remove('visible');
+                this.render();
+                this.updatePanels();
+            },
+
+            checkSAM(tile, owner) {
+                for (let y = Math.max(0, tile.y - CONFIG.samRange); y <= Math.min(CONFIG.height - 1, tile.y + CONFIG.samRange); y++) {
+                    for (let x = Math.max(0, tile.x - CONFIG.samRange); x <= Math.min(CONFIG.width - 1, tile.x + CONFIG.samRange); x++) {
+                        const t = this.map[y][x];
+                        if (t.owner !== owner || !t.structures.sam) continue;
+                        const dist = Math.hypot(tile.x - x, tile.y - y);
+                        if (dist <= CONFIG.samRange) {
+                            if (Math.random() < 0.65) {
+                                this.pushLog('SAM battery absorbed the warhead.');
+                                t.structures.sam = false;
+                                return true;
+                            }
+                            this.pushLog('SAM overwhelmed.');
+                            t.structures.sam = false;
+                            return false;
+                        }
+                    }
+                }
+                return false;
+            },
+
+            tick() {
+                if (this.mode !== 'running') return;
+                this.day += 1;
+                this.updateCountryStats('PLAYER');
+                this.updateCountryStats('AI');
+                this.processTrade();
+                this.aiTurn();
+                this.render();
+                this.updatePanels();
+                this.logDecay();
+            },
+
+            logDecay() {
+                this.log = this.log.slice(-40);
+            },
+
+            updateCountryStats(id) {
+                const country = this.countries[id];
+                const tiles = this.map.flat().filter(t => t.owner === id);
+                const cities = tiles.filter(t => t.structures.city).length;
+                const silos = tiles.filter(t => t.structures.silo).length;
+                const ports = tiles.filter(t => t.structures.port).length;
+
+                const basePop = Math.pow(Math.max(1, tiles.length), 0.6) * 1000 + 5000;
+                const cityBonus = cities * 1200;
+                const maxPop = Math.round(2 * basePop + cityBonus);
+                country.maxPopulation = maxPop;
+
+                const growth = Math.max(0, Math.round((10 + Math.pow(country.population, 0.73) / 4) * (1 - country.population / Math.max(1, maxPop))));
+                country.population = Math.max(500, country.population + growth);
+                if (country.population > maxPop) country.population = maxPop;
+
+                country.gold += cities * CONFIG.cityGold;
+                country.nukeProgress += silos * CONFIG.nukeChargePerTick;
+                if (country.nukeProgress >= 100) {
+                    country.nukes += 1;
+                    country.nukeProgress -= 100;
+                    if (id === 'PLAYER') this.pushLog('A nuclear warhead is ready.');
+                }
+                country.betrayalTimer = Math.max(0, country.betrayalTimer - 1);
+                country.ports = ports;
+            },
+
+            processTrade() {
+                const player = this.countries.PLAYER;
+                const enemy = this.countries.AI;
+                const playerControl = (player.warships + 1) / (enemy.warships + 1);
+                const enemyControl = (enemy.warships + 1) / (player.warships + 1);
+
+                const playerIncome = Math.round(player.tradeShips * CONFIG.tradeGold * Math.min(1.5, playerControl));
+                const enemyIncome = Math.round(enemy.tradeShips * CONFIG.tradeGold * Math.min(1.5, enemyControl));
+
+                player.gold += playerIncome;
+                enemy.gold += enemyIncome;
+
+                if (player.warships > 0 && Math.random() < CONFIG.warshipRaidChance) {
+                    const stolen = Math.min(enemy.tradeShips, 1);
+                    enemy.tradeShips = Math.max(0, enemy.tradeShips - stolen);
+                    this.pushLog('Warships raided enemy trade fleet.');
+                }
+                if (enemy.warships > 0 && Math.random() < CONFIG.warshipRaidChance) {
+                    player.tradeShips = Math.max(0, player.tradeShips - 1);
+                    this.pushLog('Enemy warships disrupted our convoy.', 'danger');
+                }
+            },
+
+            aiTurn() {
+                const ai = this.countries.AI;
+                const player = this.countries.PLAYER;
+                const manpower = this.getManpower(ai);
+                const tiles = this.map.flat().filter(t => t.owner === 'AI');
+                if (!tiles.length) return;
+
+                const borderTiles = tiles.filter(t => this.neighbors(t).some(n => n.owner !== 'AI'));
+                const targets = borderTiles.map(tile => this.neighbors(tile)).flat().filter(t => t.owner !== 'AI');
+                if (targets.length && manpower > 800) {
+                    const target = targets[Math.floor(Math.random() * targets.length)];
+                    this.issueAttack('AI', target, 0.6);
+                } else if (ai.gold > STRUCTURE_COST.city.gold && Math.random() < 0.5) {
+                    const cityTile = borderTiles.find(t => !t.structures.city && t.type !== 'water');
+                    if (cityTile) {
+                        cityTile.structures.city = true;
+                        ai.gold -= STRUCTURE_COST.city.gold;
+                    }
+                } else if (ai.gold > STRUCTURE_COST.port.gold && Math.random() < 0.35) {
+                    const portTile = tiles.find(t => !t.structures.port && this.neighbors(t).some(n => n.type === 'water'));
+                    if (portTile) {
+                        portTile.structures.port = true;
+                        ai.gold -= STRUCTURE_COST.port.gold;
+                        ai.tradeShips += 1;
+                    }
+                } else if (ai.gold > 900 && Math.random() < 0.2) {
+                    ai.gold -= 900;
+                    ai.warships += 1;
+                } else if (ai.gold > STRUCTURE_COST.silo.gold && Math.random() < 0.15) {
+                    const siloTile = tiles.find(t => !t.structures.silo && t.type !== 'water');
+                    if (siloTile) {
+                        siloTile.structures.silo = true;
+                        ai.gold -= STRUCTURE_COST.silo.gold;
+                    }
+                }
+
+                if (ai.nukes > 0 && Math.random() < 0.18) {
+                    const playerTiles = this.map.flat().filter(t => t.owner === 'PLAYER');
+                    if (playerTiles.length) {
+                        const target = playerTiles[Math.floor(Math.random() * playerTiles.length)];
+                        this.nukeTargeting = true;
+                        this.fireNuke(target);
+                        this.nukeTargeting = false;
+                    }
+                }
+            },
+
+            computeShield(country) {
+                const tilesOwned = this.map.flat().filter(t => t.owner && t.owner === this.ownerId(country)).length;
+                const troops = this.getManpower(country);
+                const density = troops / Math.max(1, tilesOwned);
+                return Math.min(120, Math.round(density));
+            },
+
+            getManpower(country) {
+                return Math.max(0, Math.round(country.population * (1 - country.workerRatio)));
+            },
+
+            tileAdjacentTo(tile, owner) {
+                return this.neighbors(tile).some(t => t.owner === owner);
+            },
+
+            neighbors(tile) {
+                const dirs = [ [1,0], [-1,0], [0,1], [0,-1] ];
+                return dirs.map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy }))
+                    .filter(pos => this.inBounds(pos.x, pos.y))
+                    .map(pos => this.map[pos.y][pos.x]);
+            },
+
+            inBounds(x, y) {
+                return x >= 0 && y >= 0 && x < CONFIG.width && y < CONFIG.height;
+            },
+
+            render() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let y = 0; y < CONFIG.height; y++) {
+                    for (let x = 0; x < CONFIG.width; x++) {
+                        const tile = this.map[y][x];
+                        const baseColor = TERRAIN[tile.type].color;
+                        ctx.fillStyle = baseColor;
+                        ctx.fillRect(x * CONFIG.tile, y * CONFIG.tile, CONFIG.tile, CONFIG.tile);
+
+                        if (tile.owner) {
+                            ctx.fillStyle = this.countries[tile.owner].color;
+                            ctx.globalAlpha = 0.35;
+                            ctx.fillRect(x * CONFIG.tile, y * CONFIG.tile, CONFIG.tile, CONFIG.tile);
+                            ctx.globalAlpha = 1;
+                        }
+
+                        if (tile.structures.city) this.drawGlyph(x, y, '#ffd86b', '▲');
+                        if (tile.structures.port) this.drawGlyph(x, y, '#7ae1ff', '⚓');
+                        if (tile.structures.defense) this.drawGlyph(x, y, '#ff8f5c', '✶');
+                        if (tile.structures.sam) this.drawGlyph(x, y, '#ffe9a3', '⛨');
+                        if (tile.structures.silo) this.drawGlyph(x, y, '#f96d8a', '核');
+                    }
+                }
+
+                if (this.selectedTile) {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        this.selectedTile.x * CONFIG.tile + 1,
+                        this.selectedTile.y * CONFIG.tile + 1,
+                        CONFIG.tile - 2,
+                        CONFIG.tile - 2
                     );
                 }
-            }
-            ctx.restore();
-        }
+            },
 
-        // Highlight selected province overlay only
-        if (this.selectedProvId !== null) {
-            const p = getProvince(this.selectedProvId);
-            if (p) {
-                ctx.fillStyle = CONFIG.colors.selected;
-                ctx.fill(p.path);
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1.5 / this.camera.zoom;
-                ctx.stroke(p.path);
-            }
-        }
-        
-        // Draw armies as dots on the map
-        const armyLen = armies.length;
-        for (let i = 0; i < armyLen; i++) {
-            const army = armies[i];
-            const prov = getProvince(army.provinceId);
-            if (!prov) continue;
-            
-            // Culling check
-            if (prov.bounds.maxX < minWorldX || prov.bounds.minX > maxWorldX ||
-                prov.bounds.maxY < minWorldY || prov.bounds.minY > maxWorldY) {
-                continue;
-            }
-            
-            ctx.save();
-            ctx.translate(prov.center.x, prov.center.y);
-            
-            // Draw army dot
-            const dotSize = Math.max(2, Math.min(8, army.getTotalUnits() / 5)) / this.camera.zoom;
-            const ownerColor = countries[army.owner] ? countries[army.owner].color : '#fff';
-            
-            ctx.beginPath();
-            ctx.arc(0, 0, dotSize, 0, Math.PI * 2);
-            ctx.fillStyle = ownerColor;
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1 / this.camera.zoom;
-            ctx.stroke();
-            
-            // Draw unit count
-            ctx.scale(1, -1);
-            const textScale = 1 / this.camera.zoom;
-            ctx.scale(textScale, textScale);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 8px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(army.getTotalUnits().toString(), 0, -dotSize * this.camera.zoom - 3);
-            
-            ctx.restore();
-        }
-            
-            ctx.restore();
-        });
-        
-        ctx.restore();
-    }
-};
+            drawGlyph(x, y, color, glyph) {
+                ctx.fillStyle = color;
+                ctx.font = `${CONFIG.tile * 0.5}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(glyph, x * CONFIG.tile + CONFIG.tile / 2, y * CONFIG.tile + CONFIG.tile / 2);
+            },
 
-window.onload = function() {
-    game.init();
-};
-</script>
+            updatePanels() {
+                if (!this.countries) return;
+                const player = this.countries.PLAYER;
+                labels.day.textContent = this.day;
+                labels.pop.textContent = player.population.toLocaleString();
+                labels.manpower.textContent = this.getManpower(player).toLocaleString();
+                labels.gold.textContent = player.gold.toLocaleString();
+                labels.shield.textContent = this.computeShield(player);
+                const playerTiles = this.map.flat().filter(t => t.owner === 'PLAYER');
+                labels.tileCount.textContent = playerTiles.length;
+                labels.cityCount.textContent = playerTiles.filter(t => t.structures.city).length;
+                labels.portCount.textContent = player.ports || 0;
+                labels.tradeCount.textContent = player.tradeShips;
+                labels.warshipCount.textContent = player.warships;
+                labels.siloCount.textContent = playerTiles.filter(t => t.structures.silo).length;
+                labels.nukeCount.textContent = player.nukes;
+                this.updateTilePanel();
+                labels.navalReadout.textContent = `Income ${player.tradeShips * CONFIG.tradeGold} g/tick · Control ${(player.warships + 1) / (this.countries.AI.warships + 1) >= 1 ? 'ours' : 'contested'}`;
+                labels.log.innerHTML = this.log.map(entry => `<div class="log-entry ${entry.level || ''}">${entry.text}</div>`).join('');
+            },
+
+            updateTilePanel() {
+                if (!this.selectedTile) {
+                    labels.tileReadout.textContent = 'Select a tile to inspect terrain, owner, and defenses.';
+                    return;
+                }
+                const tile = this.selectedTile;
+                const owner = tile.owner ? this.countries[tile.owner].id : 'Neutral';
+                const structures = Object.entries(tile.structures).filter(([, val]) => val).map(([key]) => key).join(', ') || 'None';
+                labels.tileReadout.innerHTML = `
+                    Terrain: <span>${TERRAIN[tile.type].name}</span><br>
+                    Owner: <span>${owner}</span><br>
+                    Structures: <span>${structures}</span><br>
+                    Capture cost ≈ <span>${TERRAIN[tile.type].baseCost}</span>
+                `;
+            },
+
+            pushLog(text, level) {
+                this.log.unshift({ text, level });
+                labels.log.innerHTML = this.log.slice(0, 12).map(entry => `<div class="log-entry ${entry.level || ''}">${entry.text}</div>`).join('');
+            },
+
+            ownerId(country) {
+                return country === this.countries.PLAYER ? 'PLAYER' : 'AI';
+            },
+
+            checkVictory() {
+                const totalLand = this.map.flat().filter(t => t.type !== 'water').length;
+                const playerLand = this.map.flat().filter(t => t.owner === 'PLAYER').length;
+                const enemyLand = this.map.flat().filter(t => t.owner === 'AI').length;
+                if (playerLand / totalLand >= CONFIG.dominationThreshold) {
+                    this.mode = 'ended';
+                    clearInterval(this.tickHandle);
+                    this.pushLog('Domination achieved. Earthside command ecstatic.');
+                } else if (enemyLand / totalLand >= CONFIG.dominationThreshold) {
+                    this.mode = 'ended';
+                    clearInterval(this.tickHandle);
+                    this.pushLog('Enemy dominates theater. Retreat!', 'danger');
+                }
+            }
+        };
+
+        window.game = game;
+        window.addEventListener('load', () => game.init());
+    })();
+    </script>
 </body>
 </html>
